@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>自學星圖</title>
+<style>/*CSS*/</style>
+</head>
+<body>
+<header>
+  <h1>🌌 自學星圖</h1>
+  <span class="mode" id="mode">試玩中，不會記錄</span>
+</header>
+<nav role="tablist">
+  <button role="tab" aria-selected="true" data-tab="t1">🗺️ 星圖</button>
+  <button role="tab" aria-selected="false" data-tab="t4">🏆 排行榜</button>
+</nav>
+<p id="loading">題本載入中…</p>
+<main>
+<section id="t1" class="on">
+  <div class="wrap">
+    <div class="map"><div class="crumb" id="crumb"></div><div id="stage" hidden><canvas id="gl" aria-label="3D 自學星圖：拖曳旋轉、滾輪或雙指縮放"></canvas><div id="pins"></div><div id="fps"></div><div id="tip">拖曳旋轉・滾輪或雙指縮放・點標籤進入</div><div id="lg" hidden><div><b style="background:#c9cbd6"></b>內圈・紅旗＝期中評量考過（複習用）</div><div><b style="background:#f0a12a"></b>外圈＝期末評量範圍</div></div></div><svg id="svg" viewBox="0 0 1000 660" role="img" aria-label="自學星圖地圖"></svg></div>
+    <aside class="panel" id="panel"></aside>
+  </div>
+</section>
+<section id="t4"><div id="lb"></div></section>
+</main>
+<div id="g8play" class="g8" hidden><div class="stage"><div id="scene" aria-live="polite"></div></div></div>
+<script>/*JS*/</script>
+</body>
+</html>
