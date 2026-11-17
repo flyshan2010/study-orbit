@@ -16,7 +16,7 @@ const APP={me:null,save:{},ev:[],
   /* 闖關作答 ["a", 關, 格, 題目ID, 選項, 提示數, 秒數, 第幾次]；第一次答錯就發卡（待複習） */
   answer(LV,slot,q,opt,hints,sec,nth,cards){this.log(LV.book,['a',LV.key,slot,q.id,opt,hints,sec,nth]);
     if(nth===1)cards.forEach(c=>{this.setCard(LV.book,c,'t');LV.got=(LV.got||0)+1})},
-  /* 配合題：一對一筆事件，選項只帶那一對（例 "2D"）——⚠️ 代理 v2.21 是整題判，第 4 步前要對齊（P2 SPEC §15） */
+  /* 配合題：一對一筆事件，選項只帶那一對（例 "2D"）；代理 soJudge_ 只判那一對、一題最多發兩張卡（與 cardsFor 同一套） */
   answerMatch(LV,slots,idx,q,pairs,hints,sec,nth,cards){idx.forEach(i=>this.log(LV.book,['a',LV.key,slots[i],q.id,(i+1)+(pairs[i+1]||''),hints,sec,nth])); /* 再挑戰只記原本配錯的那幾對 */
     if(nth===1)cards.forEach(c=>{this.setCard(LV.book,c,'t');LV.got=(LV.got||0)+1})},
   overcome(LV,codes){codes.forEach(c=>this.setCard(LV.book,c,'d'))},
