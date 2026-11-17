@@ -333,12 +333,39 @@ nav button{min-height:44px}
  #g8play .stage{min-height:calc(100dvh - 2*clamp(8px,2vw,20px))}}
 /* 手機：右下角的音樂／音效浮動鈕不要蓋住側欄最後幾行 */
 @media(max-width:600px){main{padding-bottom:140px}}
+
+/* ---------- 第 4 步：登入、今日任務、排行榜 ---------- */
+.mode.in{background:#123d2a;color:#b9f0cf;border-color:#2f8a5c}
+header .acct{margin-top:0;min-height:44px;padding:6px 16px}
+.trial-note .lnk{margin-left:6px;color:#ffd166;text-decoration:underline}
+.dlg{position:fixed;inset:0;z-index:60;background:#080c28d9;display:grid;place-items:center;padding:16px}
+.dlg .box{background:#151d4a;border:1px solid var(--line);border-radius:16px;padding:18px 20px;width:min(400px,100%);box-sizing:border-box;max-height:calc(100dvh - 32px);overflow:auto}
+.dlg h2{margin:0 0 6px}
+.dlg label{display:block;margin:10px 0 0;font-weight:700}
+.dlg input{display:block;width:100%;box-sizing:border-box;margin-top:4px;font:inherit;font-size:20px;padding:8px 12px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#0d1436;color:var(--ink)}
+.dlg .err{color:#ffb3b3;min-height:1.4em;margin:8px 0 0}
+.dlg .row{display:flex;gap:10px;flex-wrap:wrap}
+.dlg .btn{min-height:44px}
+.tasks{list-style:none;padding:0;margin:0 0 8px;display:grid;gap:6px}
+.tasks li{display:flex;gap:8px;align-items:flex-start;background:#0d1436;border-radius:10px;padding:6px 10px}
+.tasks li.ok{opacity:.75}
+.tasks small{display:block;opacity:.75}
+#toNext,#resume{min-height:44px}
+.rk{max-width:640px;margin:auto}
+.seg2{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.seg2 .btn{margin-top:0;min-height:44px}
+.rkt{width:100%;border-collapse:collapse;margin-top:8px;font-size:18px}
+.rkt th,.rkt td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+.rkt tr.me td{background:#3a2f0a;color:var(--gold);font-weight:800}
+.rkt tr.gap td{text-align:center;opacity:.7}
+.cu{font-weight:700;color:var(--gold)}
 </style>
 </head>
 <body>
 <header>
   <h1>🌌 自學星圖</h1>
   <span class="mode" id="mode">試玩中，不會記錄</span>
+  <button class="btn ghost acct" id="acct" hidden>登入</button>
 </header>
 <nav role="tablist">
   <button role="tab" aria-selected="true" data-tab="t1">🗺️ 星圖</button>
@@ -637,6 +664,112 @@ function cardAfter(cur, ok, today) {
 }
 
 return{planRound,parsePairs,pairsStr,judgeChoice,judgeMatch,cardsFor,cardQuestion,dayDiff,deckOf,cardAfter}})();
+/* ===== sync.mjs ===== */
+const {PUSH_MAX,takeBatch,dropUpTo,booksIn,backoff,midOf,resumeOf,midSlot,nextLevelKey,taskSrc,catchUpText}=(()=>{
+// 自學星圖前台：接代理用的純函式（node 測試直接 import；build.py 去掉 export 併進頁面）。
+// 規格：P2 SPEC §5.3（事件、seq 去重）、§7（佇列、接續）、§1 第 4 項（今日任務）、§15 前台約定。
+// 這支只算、不碰網路與 localStorage（那些在 api.js）。
+
+/** 一包最多幾筆事件（代理上限 200） */
+const PUSH_MAX = 200;
+
+/**
+ * 佇列裡的一筆＝{b:題本, s:seq, e:事件}；seq 每個「座號×題本」各自從 1 連號（代理依題本格記每台載具的最大 seq）。
+ * 取某一本最前面一段連號的事件，回 {seq0, ev, last}；沒有回 null。
+ */
+function takeBatch(queue, book, max = PUSH_MAX) {
+  const mine = queue.filter((x) => x.b === book).sort((a, b) => a.s - b.s);
+  if (!mine.length) return null;
+  const ev = [mine[0].e];
+  for (let i = 1; i < mine.length && ev.length < max; i++) {
+    if (mine[i].s !== mine[0].s + i) break; // 斷號就先送前面這段
+    ev.push(mine[i].e);
+  }
+  return { seq0: mine[0].s, ev, last: mine[0].s + ev.length - 1 };
+}
+
+/** 代理收到後，把這本 seq ≤ last 的事件從佇列拿掉 */
+const dropUpTo = (queue, book, last) => queue.filter((x) => !(x.b === book && x.s <= last));
+
+/** 佇列裡有哪些題本要送（依最早那筆的 seq 先後無意義，照出現順序） */
+const booksIn = (queue) => [...new Set(queue.map((x) => x.b))];
+
+/** 重試等待：2、4、8…最多 60 秒（n＝第幾次失敗，從 1 起） */
+const backoff = (n) => Math.min(60, 2 ** Math.max(1, n)) * 1000;
+
+// ── 接續（mid）──────────────────────────────────────────────
+// mid＝{k:關, i:目前第幾項, res:7 字, q:[主題,備題,…], t:毫秒}
+// res 一格一字：g 金燈、s 銀燈、x 熄燈（已定案）、w 第一次答錯在等再挑戰、. 還沒答
+const LIGHT = { gold: "g", silver: "s", dark: "x" };
+
+/**
+ * 由闖關狀態算 mid。plan＝planRound 的結果；res＝7 格燈色（''／gold／silver／dark）；
+ * pend＝第一次答錯、還在等再挑戰的格子編號（1–7）
+ */
+function midOf(key, plan, n, res, pend = [], now = Date.now()) {
+  const s = res.map((r, i) => (pend.includes(i + 1) ? "w" : LIGHT[r] || ".")).join("");
+  return { k: key, i: n, res: s, q: plan.flatMap((it) => [it.q.id, it.alt ? it.alt.id : ""]), t: now };
+}
+
+/**
+ * 把 mid 還原成可以接著玩的回合；題目對不上（題本改版）回 null＝從頭開始。
+ * 回 {plan, n, res, pend}：n＝第一個還沒定案的項目；pend＝那一項裡等再挑戰的格子
+ */
+function resumeOf(mid, questions, level) {
+  if (!mid || !Array.isArray(mid.q) || typeof mid.res !== "string" || mid.res.length !== 7) return null;
+  const byId = new Map(questions.filter((q) => q.level === level).map((q) => [q.id, q]));
+  const plan = [];
+  for (let i = 0; i < mid.q.length; i += 2) {
+    const q = byId.get(mid.q[i]);
+    if (!q) return null;
+    const span = Math.max(1, Number(q.span) || 1);
+    plan.push({ slots: Array.from({ length: span }, (_, k) => q.slot + k), q, alt: byId.get(mid.q[i + 1]) || null });
+  }
+  const slots = plan.flatMap((x) => x.slots);
+  if (slots.join() !== "1,2,3,4,5,6,7") return null;
+  const ch = [...mid.res];
+  let n = plan.findIndex((it) => it.slots.some((s) => ".w".includes(ch[s - 1])));
+  if (n < 0) n = plan.length; // 7 格都定案了、只差按「看結果」→ 接續後直接結算
+  const res = ch.map((c) => ({ g: "gold", s: "silver", x: "dark" })[c] || "");
+  const pend = n < plan.length ? plan[n].slots.filter((s) => ch[s - 1] === "w") : [];
+  return { plan, n, res, pend };
+}
+
+/** 接續提示的「第 N 題」＝第一個還沒定案的格子 */
+function midSlot(mid) {
+  if (!mid || typeof mid.res !== "string") return 0;
+  const i = [...mid.res].findIndex((c) => c === "." || c === "w");
+  return i < 0 ? 0 : i + 1;
+}
+
+// ── 今日任務（§1 第 4 項：複習＋前進＋自選；一回合只算一件）─────────
+/** 這一本「目前進度的下一個還沒過的關」：依結構順序第一個最高星等 0 的關 */
+function nextLevelKey(keys, lv) {
+  return keys.find((k) => !((lv[k] || [0])[0] >= 1)) ?? null;
+}
+
+/**
+ * 一回合結束時算任務來源（送給代理的 "e" 事件第 3 格）：
+ *   n＝打的正好是下一關；r＝今天沒有到期的卡、而打的是一關還沒 3 星（已過關）的；f＝其他任一回合
+ * done＝今天已完成的來源；before＝這一關打之前的最高星等；hasDue＝今天有沒有該複習的卡
+ */
+function taskSrc(done, { isNext, before, hasDue }) {
+  const left = (x) => !done.includes(x);
+  if (done.length >= 3) return "";
+  if (isNext && left("n")) return "n";
+  if (left("r") && !hasDue && before >= 1 && before < 3) return "r";
+  if (left("f")) return "f";
+  return "";
+}
+
+/** 排行榜的「再 N 顆星」說法 */
+function catchUpText(metric, n) {
+  if (n == null) return "";
+  if (n <= 0) return "和前一名同分！";
+  return metric === "progress" ? `再完成 ${n} 關就追平前一名` : `再 ${n} 顆星就追平前一名`;
+}
+
+return{PUSH_MAX,takeBatch,dropUpTo,booksIn,backoff,midOf,resumeOf,midSlot,nextLevelKey,taskSrc,catchUpText}})();
 /* ===== data.js ===== */
 /* ---------- 資料：讀班網的題本檔（公開、無學生資料），排成地圖用的 R ----------
    題本檔由班網同步產生（P2 SPEC §3）：data/study-orbit/index.json＋<題本代碼>.json。
@@ -1069,17 +1202,21 @@ const LETTER='ABCD';
 const SAY=['島上 7 盞燈熄了，答對一題就點亮一盞。卡關時點「查看提示」，我一步一步給你線索。','好的開始！慢慢想，不用趕。','第三盞了，再亮一盞就過半。','過半了！繼續穩穩來。','越來越難囉，先讀清楚題目。','剩兩題！','最後一題！過關就能翻一張故事卡。'];
 
 function open(lv){LV=lv;MODE='round';$('#g8play').hidden=false;document.body.style.overflow='hidden';intro()}
-function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.afterPlay()}
-function modeChips(){return APP.me?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
+function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.afterPlay();if(APP.rec())API.flush()}
+function modeChips(){return APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
 function intro(){const best=APP.best(LV);
   S.innerHTML=`<div class="intro"><button class="ghost" data-act="quit">← 回到地圖</button><div class="where">${LV.crumb}</div><h2>${LV.title}</h2>
    <div class="owl">${OWL}</div><div class="say">島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
    <div class="chips"><span class="chip">${best?'最高紀錄 '+starStr(best):'第一次挑戰'}</span>${modeChips()}</div>
-   <button class="big" data-act="start">出發點燈！</button></div>`}
+   <button class="big" data-act="start">${LV.resume?'繼續闖關！':'出發點燈！'}</button></div>`}
 
 /* ---------- 一回合 ---------- */
-function start(){PL=planRound(LV.questions,LV.code);
-  st={n:0,res:Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ()}
+/* 開一回合；LV.resume＝換載具接續（resumeOf 還原的題目與燈），等再挑戰的格子直接進再挑戰 */
+function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:planRound(LV.questions,LV.code);
+  st={n:rs?rs.n:0,res:rs?rs.res.slice():Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ();
+  if(rs&&rs.pend.length&&st.it){st.wrongSlots=st.it.slots.map((s,i)=>rs.pend.includes(s)?i:-1).filter(i=>i>=0);retry()}}
+/* 每答完一次就記 mid（pend＝第一次答錯、等再挑戰的格子）；只有登入時才送 */
+function saveMid(pend){if(MODE==='round')APP.midSet(LV,midOf(LV.key,PL,st.n,st.res,pend||[]))}
 function nextQ(){if(st.n>=PL.length)return result();st.it=PL[st.n];st.q=st.it.q;st.re=false;st.wrong=[];st.wrongSlots=null;drawQ()}
 const slotOf=()=>st.it.slots[0];
 const levelTag=()=>{const s=LV.slots[slotOf()-1]||'';return s?s+'題':''};
@@ -1087,10 +1224,10 @@ function material(q){if(!q.group||!q.material)return'';
   if(q.materialType==='圖表'){try{const d=JSON.parse(q.material);if(Array.isArray(d.rows))return`<div class="mat"><table>${(d.head?`<tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`:'')+d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`}catch(e){}}
   return`<div class="mat">${esc(q.material).replace(/\n/g,'<br>')}</div>`}
 function head(){const lit=st.res.filter(r=>r&&r!=='dark').length,cur=st.it.slots;
-  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.me?APP.me.seat+' 號':'試玩'}</div>
+  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?APP.me.seat+' 號':'試玩'}</div>
     <div class="ttl"><span class="gcrumb">${LV.crumb}</span><h2>${LV.title}</h2></div>
     <div class="prog" aria-label="已點亮 ${lit} 盞，共 7 盞">${LV.slots.map((p,i)=>`<i class="mk${p==='應用'?' d':''} ${st.res[i]||''}${cur.includes(i+1)?' cur':''}"></i>`).join('')}
-      <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.me?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
+      <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.rec()?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
       <button class="snd" data-act="snd" aria-label="音效開關">${snd?'🔊':'🔇'}</button></div></div>`}
 function drawQ(){const q=st.q,s=st.it.slots;lock=false;st.sel=-1;st.pairs={};st.pl=null;st.hint=0;st.t0=Date.now();
   const no=s.length>1?`第 ${s[0]}～${s[s.length-1]} 盞（配合題，一對一盞）`:`第 ${s[0]} 題／共 7 題`;
@@ -1143,10 +1280,10 @@ function confirm(){if(MODE==='card')return cardConfirm();const q=st.q;if(lock)re
     setLight(slot,kind);bump(kind);
     if(st.re){APP.overcome(LV,st.wrong);toast('秘笈卡蓋上「已克服」章！');$('#say').textContent='你克服這個盲點了！秘笈卡收進卡冊，之後隨時能回來翻。'}
     else{toast(kind==='gold'?'金燈 +1':'銀燈 +1');$('#say').textContent=kind==='gold'?(st.combo>1?`答對了！連對 ${st.combo} 題，金燈再亮一盞。`:'答對了！金燈亮一盞。'):hints?'答對了！用了提示，這盞是銀燈；下次試試不靠提示。':'答對了！不過答得太快，這盞先給銀燈；下次讀完題目再作答。'}
-    toNext()}
+    saveMid();toNext()}
   else{bs[st.sel].classList.add('no');sfx('no');$('#owl').classList.add('tilt');bump('dark');
-    if(!st.re){st.wrong=cardsFor(q,letter);$('#say').textContent=st.wrong.length?'差一點！我有一張秘笈卡要送你。':'差一點！換一題同類的再試一次。';setTimeout(()=>giveCards(st.wrong),800)}
-    else{setLight(slot,'dark');bs.forEach((b,k)=>LETTER[k]===String(q.answer).toUpperCase()&&b.classList.add('ok'));showWhy(q);
+    if(!st.re){st.wrong=cardsFor(q,letter);saveMid([slot]);$('#say').textContent=st.wrong.length?'差一點！我有一張秘笈卡要送你。':'差一點！換一題同類的再試一次。';setTimeout(()=>giveCards(st.wrong),800)}
+    else{setLight(slot,'dark');saveMid();bs.forEach((b,k)=>LETTER[k]===String(q.answer).toUpperCase()&&b.classList.add('ok'));showWhy(q);
       $('#say').textContent='沒關係，這盞燈先留著，之後再回來點亮它。';toNext()}}}
 
 /* 配合題：一對一盞燈；第一次配錯的那幾對發卡、再挑戰換另一組配合題，只算原本配錯的那幾對 */
@@ -1157,7 +1294,7 @@ function confirmMatch(q,sec,nth,hints){const ok=judgeMatch(q,st.pairs),slots=st.
   APP.answerMatch(LV,slots,counted,q,st.pairs,hints,sec,nth,cardsFor(q,st.pairs));
   let bad=[];
   counted.forEach(i=>{const s=slots[i];if(ok[i]){const kind=st.re?'silver':slotLight({first:true,hinted:hints>0,fast:isFast(sec)}).light;setLight(s,kind);bump(kind)}else{bad.push(i);if(st.re)setLight(s,'dark');bump('dark')}});
-  const right=counted.length-bad.length;
+  const right=counted.length-bad.length;saveMid(!st.re&&bad.length?bad.map(i=>slots[i]):[]);
   if(!bad.length){sfx('ok');$('#owl').classList.add('hop');if(st.re)APP.overcome(LV,st.wrong);
     $('#say').textContent=st.re?'配對都正確了！秘笈卡蓋上「已克服」章。':hints?'全部配對正確！用了提示，這幾盞是銀燈。':'全部配對正確！';toNext();return}
   sfx('no');$('#owl').classList.add('tilt');
@@ -1179,7 +1316,7 @@ function result(){const g=st.res.filter(r=>r==='gold').length,sv=st.res.filter(r
   S.innerHTML=`<div class="res"><h2>${sc===3?(g===7?'全對！太厲害了！':'燈籠全亮了！'):sc?'過關！':'再試一次就能過關'}</h2>
    <div class="stars">${[0,1,2].map(i=>`<span class="${i<sc?'on':''}" style="animation-delay:${.2+i*.25}s">★</span>`).join('')}</div>
    <div class="lans" style="flex:none">${st.res.map(x=>`<div class="lan ${x}"></div>`).join('')}</div>
-   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.me?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
+   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
    ${story?`<div id="myst">${r.storyNew?`<p style="margin:4px 0 8px;font-weight:800">選一張翻開，看看這一關的故事卡</p><div class="myst">${[0,1,2].map(i=>`<button class="mc" data-act="flip" aria-label="第 ${i+1} 張神祕卡">？</button>`).join('')}</div>`:`<div class="story">📖 ${esc(story.title)}<br><small>這張故事卡已經收集過了</small></div>`}</div>`:''}
    <div class="row"><button class="big" data-act="start">${sc===3?'再玩一次':'再挑戰（題目不同）'}</button><button class="ghost" data-act="quit">← 回到地圖</button></div></div>`}
 function flip(){const s=LV.story;$('#myst').innerHTML=`<div class="story">📖 <b>${esc(s.title)}</b><br>${esc(s.body)}<br><small>已收進故事卡圖鑑</small></div>`;sfx('card')}
@@ -1216,13 +1353,20 @@ return{open,openCard,close,setSnd,unlock,get snd(){return snd}}})();
 /* ===== app.js ===== */
 /* ---------- APP：存檔、作答紀錄、側欄 ----------
    試玩模式（還沒登入）：進度只記在這個分頁（sessionStorage），關掉就沒了，不上傳、不上排行榜。
-   登入、上傳佇列、接續、排行榜在第 4 步接代理（APP.me 有值＝已登入）。
-   作答事件格式照代理 so_push（P2 SPEC §5.3 與 §15 前台約定），先排進 APP.ev，第 4 步才送出。 */
-const APP={me:null,save:{},ev:[],
+   登入後（APP.me 有值）：作答事件照代理 so_push 格式（P2 SPEC §5.3 與 §15 前台約定）排進上傳佇列（api.js），
+   進度快取在這台載具、以伺服器拉回的為準；paused＝代理暫停中，退回只能試玩、不記錄。 */
+const APP={me:null,paused:false,save:{},
   m(book){return this.save[book]||(this.save[book]=decodeSave(null))},
-  persist(book){try{sessionStorage.setItem('so-trial-'+book,encodeSave(this.m(book)))}catch(e){}},
-  restore(){for(const b of DATA.index.books){try{const s=sessionStorage.getItem('so-trial-'+b.code);if(s)this.save[b.code]=decodeSave(s)}catch(e){}}},
-  log(book,e){this.ev.push([book,e])},
+  rec(){return!!this.me&&!this.paused}, /* 這一回合會不會記錄 */
+  persist(book){const s=encodeSave(this.m(book));if(this.me){API.cache(book,s);return}try{sessionStorage.setItem('so-trial-'+book,s)}catch(e){}},
+  restore(){for(const b of DATA.index.books){try{const s=this.me?(API.cached(b.code)||{}).save:sessionStorage.getItem('so-trial-'+b.code);if(s)this.save[b.code]=decodeSave(s)}catch(e){}}},
+  log(book,e){if(this.rec())API.enqueue(book,e)},
+  /* 換載具接續：每答完一題記一次 mid（只在登入時送） */
+  midSet(LV,mid){if(!this.rec())return;this.m(LV.book).mid=mid;this.persist(LV.book);API.setMid(LV.book,mid)},
+  /* 今日任務來源（§1 第 4 項）：n 下一關／r 複習（沒有卡要複習時，重玩沒到 3 星的關）／f 自選 */
+  taskOf(LV,m,before){const r=R.find(x=>x.book===LV.book),keys=r?r.units.flatMap(u=>u.keys):[],today=todayStr();
+    const hasDue=R.some(x=>{const d=deckOf(this.m(x.book),today);return d.todo.length+d.due.length>0});
+    return taskSrc(this.me.today.done,{isNext:nextLevelKey(keys,m.lv)===LV.key,before,hasDue})},
   best(LV){return(this.m(LV.book).lv[LV.key]||[0])[0]},
   short(book,code){return code.indexOf(book+'-')===0?code.slice(book.length+1):code},
   setCard(book,code,st){const m=this.m(book),k=this.short(book,code),t=todayStr();
@@ -1239,24 +1383,35 @@ const APP={me:null,save:{},ev:[],
   card(book,code){const full=code.indexOf(book+'-')===0?code:book+'-'+code,b=(DATA.books[book]||{blindspots:[]}).blindspots.find(x=>x.code===full);
     return b?{name:b.name,...b.card}:{name:'秘笈卡',fix:'',ex:'',chk:''}},
   /* 回合結束 ["e", 關, 任務來源]：最高星等、曾經全金、挑戰次數、故事卡 */
-  endRound(LV,g,sv){const m=this.m(LV.book),res=applyRound(m.lv[LV.key]||[0,0,0],g,sv),got=LV.got||0;LV.got=0;
+  endRound(LV,g,sv){const m=this.m(LV.book),before=(m.lv[LV.key]||[0])[0],src=this.rec()?this.taskOf(LV,m,before):'';
+    const res=applyRound(m.lv[LV.key]||[0,0,0],g,sv),got=LV.got||0;LV.got=0;
+    if(this.rec()){if(m.mid&&m.mid.k===LV.key)m.mid=null;API.setMid(LV.book,null);if(src)this.me.today.done.push(src)}
     m.lv[LV.key]=res.record;let storyNew=false;
     if(passed(g,sv)&&LV.story&&!m.sc.includes(LV.key)){m.sc.push(LV.key);storyNew=true}
-    this.log(LV.book,['e',LV.key,LV.src||'']);this.persist(LV.book);
+    this.log(LV.book,['e',LV.key,src]);this.persist(LV.book);if(this.rec())API.flush();
     const isl=LV.islandKeys,gold=isl.filter(k=>(m.lv[k]||[])[1]===1).length;
     return{gained:res.gained,storyNew,cards:got,chest:[gold,isl.length]}},
   /* 卡冊挑戰 ["c", 盲點, 題目ID, 選項, 秒數] */
   cardResult(c,q,opt,sec,ok){const m=this.m(c.book),k=this.short(c.book,c.code),now=cardAfter(m.cd[k],ok,todayStr());
     this.log(c.book,['c',k,q.id,opt,sec]);
     if(now==='o')this.setCard(c.book,c.code,'o');else m.cd[k]=now;
+    if(this.rec()){const d=this.me.today.done;if(!d.includes('r')&&d.length<3)d.push('r');API.flush()} /* 卡冊一張算「複習」（代理同一套） */
     this.persist(c.book);return now},
   afterPlay(){applyProgress(R,this.save);if(M3&&M3.W3.refresh)M3.W3.refresh();go(view)}};
 
 /* ---------- 側欄（範本的示意文字換成真資料） ---------- */
 const bar=(v,c)=>`<div class="bar"><i style="width:${v}%;background:${c}"></i></div>`;
-const trialNote='<p class="trial-note">試玩中：進度只留在這個分頁，不會記錄、不上排行榜。</p>';
-function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.me?'':trialNote}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝關卡，一關 7 題</li></ul><h3>各科進度</h3>`
-  +R.map(r=>`<div class="mut">${r.name}・${r.bookTitle}　${r.done}／${r.total} 關</div>${bar(r.total?r.done/r.total*100:0,r.c.t1)}`).join('')+'<p class="mut">點地圖上的標籤進入。老師把新的單元做好，這裡就會自動多出小島。</p>'}
+const trialNote='<p class="trial-note">試玩中：進度只留在這個分頁，不會記錄、不上排行榜。<button class="lnk" data-login>登入</button></p>';
+/* 目前進度的下一個還沒過的關（今日任務「前進」）：照星圖區的順序找第一本有下一關的 */
+function findNext(){for(const r of R){const m=APP.m(r.book),k=nextLevelKey(r.units.flatMap(u=>u.keys),m.lv);if(!k)continue;
+  for(let ui=0;ui<r.units.length;ui++){const li=r.units[ui].keys.indexOf(k);if(li>=0)return{r:r.id,u:ui,l:li,t:r.name+'・'+r.units[ui].lv[li]}}}return null}
+function tasksHTML(){if(!APP.rec())return'';const d=APP.me.today.done,n=findNext(),it=(k,t,s)=>`<li class="${d.includes(k)?'ok':''}"><span>${d.includes(k)?'✅':'⬜'}</span><span><b>${t}</b><small>${s}</small></span></li>`;
+  return`<h3>📋 今日任務 ${Math.min(d.length,3)}／3${d.length>=3?'　🎉 3／3 完成！':''}</h3><ul class="tasks">${it('r','複習','卡冊挑一張卡；沒有卡要複習，就把還沒 3 星的關再玩一次')}${it('n','前進',n?'下一關：'+n.t:'目前開放的關都過了！')}${it('f','自選','任選一關打一回合')}</ul>`
+   +(APP.me.streak?`<p>🔥 連續自學 <b>${APP.me.streak}</b> 天<small class="mut">（週末、放假沒玩不會中斷）</small></p>`:'')
+   +(n&&!d.includes('n')&&d.length<3?`<button class="btn" id="toNext">▶ 前進：${n.t}</button>`:'')}
+function wireLogin(){panel.querySelectorAll('[data-login]').forEach(b=>b.onclick=loginDlg);const n=$('#toNext');if(n)n.onclick=()=>{const x=findNext();if(x)go({k:'level',r:x.r,u:x.u,l:x.l})}}
+function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝關卡，一關 7 題</li></ul><h3>各科進度</h3>`
+  +R.map(r=>`<div class="mut">${r.name}・${r.bookTitle}　${r.done}／${r.total} 關</div>${bar(r.total?r.done/r.total*100:0,r.c.t1)}`).join('')+'<p class="mut">點地圖上的標籤進入。老師把新的單元做好，這裡就會自動多出小島。</p>';wireLogin()}
 function totalsAll(){let s=0,c=0;R.forEach(r=>{const t=totals(APP.m(r.book).lv);s+=t.stars;c+=t.completed});return{stars:s,completed:c}}
 function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
   const todo=decks.reduce((a,x)=>a+x.d.todo.length+x.d.due.length,0),okN=decks.reduce((a,x)=>a+x.d.ok+x.d.wait.length,0);
@@ -1264,10 +1419,10 @@ function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:dec
   const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
   const stories=R.map(r=>{const m=APP.m(r.book),bk=DATA.books[r.book];if(!bk)return'';const got=bk.stories.filter(s=>m.sc.includes(APP.short(r.book,s.level)));
     return`<div class="mut">${r.name}　${got.length}／${bk.stories.length} 張</div>`+got.map(s=>`<details class="sty"><summary>📖 ${esc(s.title)}</summary>${esc(s.body)}</details>`).join('')}).join('');
-  panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.me?'':trialNote}<div class="kpis"><div class="kpi"><b>${t.stars} ★</b>累計星數</div><div class="kpi"><b>${t.completed} 關</b>完成關數</div><div class="kpi"><b>${todo} 張</b>待複習的卡</div><div class="kpi"><b>${okN} 個</b>已克服的盲點</div></div>
+  panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.rec()?'':trialNote}${tasksHTML()}<div class="kpis"><div class="kpi"><b>${t.stars} ★</b>累計星數</div><div class="kpi"><b>${t.completed} 關</b>完成關數</div><div class="kpi"><b>${todo} 張</b>待複習的卡</div><div class="kpi"><b>${okN} 個</b>已克服的盲點</div></div>
    <h3>🃏 複習卡冊</h3>${list?`<ul class="deck">${list}</ul>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
    <h3>📖 故事卡圖鑑</h3>${stories}<button class="btn" id="toRank">🏆 看排行榜</button>`;
-  $('#toRank').onclick=()=>tab('t4');
+  $('#toRank').onclick=()=>tab('t4');wireLogin();
   panel.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const[book,k,due]=b.dataset.card.split('|'),full=book+'-'+k,q=cardQuestion(DATA.books[book].questions,full);
     if(!q){b.disabled=true;b.textContent='沒有題目';return}G8.openCard({book,code:full,name:APP.card(book,k).name,q,due:due==='1'})})}
 function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
@@ -1286,12 +1441,14 @@ function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[l
     questions:bk.questions,story:bk.stories.find(s=>s.level===code)||null,islandKeys:u.keys,src:''}}
 function pLevel(r,ui,li){const u=r.units[ui],m=APP.m(r.book),rec=m.lv[u.keys[li]]||[0,0,0],bk=DATA.books[r.book];
   const kps=bk?bk.kps.filter(k=>k.level===u.codes[li]):[];
+  /* 換載具接續：存檔裡有這一關答到一半的 mid → 「繼續上次（第 N 題）」 */
+  const rs=APP.rec()&&bk&&m.mid&&m.mid.k===u.keys[li]?resumeOf(m.mid,bk.questions,u.codes[li]):null;
   panel.innerHTML=`<h2>${u.lv[li]}</h2><p class="mut">${r.name}・${u.n}${u.exam[li]?'・'+esc(u.exam[li])+'評量範圍':''}</p>
-   <button class="btn go" id="enter">▶ 進入這一關</button>
+   ${rs?`<button class="btn go" id="resume">⏯ 繼續上次（${rs.n>=rs.plan.length?'看結果':'第 '+midSlot(m.mid)+' 題'}）</button> `:''}<button class="btn go${rs?' ghost':''}" id="enter">▶ ${rs?'重新開始':'進入這一關'}</button>
    <p>${rec[0]?`最高紀錄 ${'★'.repeat(rec[0])+'☆'.repeat(3-rec[0])}・挑戰 ${rec[2]} 次${rec[1]?'・曾經七盞全金':''}`:'還沒挑戰過'}</p>
    ${kps.length?`<h3>這一關的學習重點</h3><ul>${kps.map(k=>`<li>${esc(k.name)}</li>`).join('')}</ul>`:''}
    <p class="mut">一關 7 題，答對一題點亮一盞燈；3 盞以上就過關，可以翻一張故事卡。</p>`;
-  $('#enter').onclick=()=>G8.open(lvCtx(r,ui,li))}
+  $('#enter').onclick=()=>G8.open(lvCtx(r,ui,li));if(rs)$('#resume').onclick=()=>G8.open({...lvCtx(r,ui,li),resume:rs})}
 function pChest(r,ui){const u=r.units[ui],m=APP.m(r.book),gold=u.keys.filter(k=>(m.lv[k]||[])[1]===1).length;
   panel.innerHTML=`<h2>${u.n}的寶箱</h2><p>這座島的每一關都<b>七盞全金</b>（不必同一天），寶箱就會打開。</p><p class="mut">${u.chest?'🎁 寶箱打開了！':'目前七盞全金的關：'+gold+'／'+u.total+' 關'}</p>`}
 
@@ -1299,7 +1456,137 @@ function pChest(r,ui){const u=r.units[ui],m=APP.m(r.book),gold=u.keys.filter(k=>
 function tab(id){document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));
   if(id==='t4')drawBoard();scrollTo(0,0)}
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>tab(b.dataset.tab));
-function drawBoard(){$('#lb').innerHTML=APP.me?'<p class="mut">排行榜讀取中…</p>':'<div class="lock-msg"><b>🏆 登入後才看得到排行榜</b><p>試玩的成績不會上排行榜。登入功能在下一步開放。</p></div>'}
+/* 排行榜（§5.5）：總排行／各科 × 星數／進度／本週星數；只有前 5 名＋自己，只顯示座號 */
+const MET={stars:'星數',progress:'進度（完成關數）',weekly:'本週星數'};
+async function drawBoard(){const lb=$('#lb');
+  if(!APP.rec()||!APP.me.token){lb.innerHTML=`<div class="lock-msg"><b>🏆 登入後才看得到排行榜</b><p>${APP.paused?'自學星圖暫停中，現在只能試玩。':'試玩的成績不會上排行榜。'}</p>${API.url&&!APP.paused?'<button class="btn" id="lbIn">登入</button>':''}</div>`;const b=$('#lbIn');if(b)b.onclick=loginDlg;return}
+  const S=API.rk,subs=[...new Set(DATA.index.books.map(b=>b.subject))];
+  lb.innerHTML=`<div class="rk"><div class="seg2" role="group" aria-label="範圍">${[['all','總排行'],...subs.map(s=>[s,s])].map(([v,t])=>`<button class="btn${S.scope===v?'':' ghost'}" aria-pressed="${S.scope===v}" data-sc="${esc(v)}">${esc(t)}</button>`).join('')}</div>
+   <div class="seg2" role="group" aria-label="排法">${Object.entries(MET).map(([v,t])=>`<button class="btn${S.metric===v?'':' ghost'}" aria-pressed="${S.metric===v}" data-mt="${v}">${t}</button>`).join('')}</div><div id="rkl"><p class="mut">排行榜讀取中…</p></div></div>`;
+  lb.querySelectorAll('[data-sc]').forEach(b=>b.onclick=()=>{S.scope=b.dataset.sc;drawBoard()});
+  lb.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{S.metric=b.dataset.mt;drawBoard()});
+  const want=S.scope+'|'+S.metric,r=await API.rank(),box=$('#rkl');if(!box||want!==S.scope+'|'+S.metric)return;
+  if(!r||r.err){box.innerHTML=`<p class="mut">${esc(r?r.err:'請先登入')}</p>`;return}
+  const unit=S.metric==='progress'?' 關':' ★',me=APP.me.seat,row=x=>`<tr class="${x.seat===me?'me':''}"><td>${x.rank}</td><td>${x.seat} 號${x.seat===me?'（你）':''}</td><td>${x.value}${unit}</td></tr>`;
+  const inTop=r.me&&r.top.some(x=>x.seat===r.me.seat);
+  box.innerHTML=(r.top.length?`<table class="rkt"><thead><tr><th>名次</th><th>座號</th><th>${MET[S.metric]}</th></tr></thead><tbody>${r.top.map(row).join('')}${r.me&&!inTop?'<tr class="gap"><td colspan="3">⋯</td></tr>'+row(r.me):''}</tbody></table>`:'<p class="mut">還沒有人上榜，闖完一關就會出現。</p>')
+   +(r.me?`<p class="cu">${r.me.rank===1?'🥇 你是第一名！':esc(catchUpText(S.metric,r.catchUp))}</p>`:'<p class="mut">你在這個排行還沒有成績，闖完一關就會上榜。</p>')
+   +'<p class="mut">只顯示前 5 名和你自己；排行一分鐘更新一次。</p>'}
+
+/* ===== api.js ===== */
+/* ---------- 接代理：登入、上傳佇列、接續、排行榜、今日任務（P2 SPEC §5、§7；前台約定見 §15） ----------
+   代理網址讀班網 data/site-config.json 的 updateProxyUrl（同網域公開檔）；讀不到＝只能試玩。
+   載具上只存：登入憑證（不是查詢碼）、座號、載具碼、每本的 seq、待上傳佇列、進度快取。查詢碼本身不存。
+   本機儲存一律包 try/catch；壞掉就退回記憶體（關掉分頁會掉，但不擋作答）。 */
+const LS={mem:{},
+  get(k){try{const v=localStorage.getItem(k);return v==null?null:JSON.parse(v)}catch(e){return k in this.mem?this.mem[k]:null}},
+  set(k,v){this.mem[k]=v;try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  del(k){delete this.mem[k];try{localStorage.removeItem(k)}catch(e){}}};
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+const API={url:'',dev:'',q:[],mid:{},busy:false,timer:null,fails:0,err:'',online:true,rk:{scope:'all',metric:'stars'},
+  key(k,b){return'so-'+k+'-'+APP.me.seat+(b?'-'+b:'')},
+  /* 開機：讀代理網址、載具碼、登入狀態 */
+  async init(){try{const c=await getJSON(DATA_BASE+'../site-config.json'),u=String(c.updateProxyUrl||'');
+      if(/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u))this.url=u}catch(e){}
+    let d=LS.get('so-dev');if(!/^[A-Za-z0-9]{8}$/.test(d||'')){d=Array.from({length:8},()=>'abcdefghjkmnpqrstuvwxyz23456789'[Math.floor(Math.random()*31)]).join('');LS.set('so-dev',d)}this.dev=d;
+    const a=LS.get('so-auth');
+    if(this.url&&a&&typeof a.token==='string'&&a.seat>0){APP.me={seat:a.seat,token:a.token,today:{done:[]},streak:0};this.q=LS.get(this.key('q'))||[]}
+    acctUI()},
+  async post(body){if(!this.url)return null;const ac=new AbortController(),t=setTimeout(()=>ac.abort(),25000);
+    try{const r=await fetch(this.url,{method:'POST',body:JSON.stringify(body),signal:ac.signal});this.online=true;return await r.json()}
+    catch(e){this.online=false;return null}finally{clearTimeout(t)}},
+  /* 代理回覆的共同處理：ok／retry（稍後重送）／stop（要重新登入或暫停中） */
+  check(r){if(!r)return'retry';if(r.ok){this.err='';return'ok'}
+    if(r.relogin){this.err='登入過期了，請重新登入（還沒上傳的會留著）';LS.del('so-auth');APP.me.token='';APP.relogin=true;acctUI();return'stop'}
+    if(r.paused){APP.paused=true;this.err=r.error||'自學星圖暫停中';acctUI();return'stop'}
+    if(r.retry)return'retry';this.err=r.error||'上傳失敗';return'retry'},
+  setMe(r){if(!APP.me)return;if(r.today&&Array.isArray(r.today.src))APP.me.today={done:r.today.src.slice()};if(typeof r.streak==='number')APP.me.streak=r.streak},
+
+  /* ---- 登入／登出 ---- */
+  async login(seat,code){if(!this.url)return'現在連不到自學星圖的伺服器，只能試玩。';
+    const r=await this.post({action:'so_login',seat,code:String(code).trim(),dev:this.dev});
+    if(!r)return'連不上網路，請檢查後再試。';if(!r.ok)return r.paused?'自學星圖暫停中，現在只能試玩。':(r.error||'登入失敗');
+    LS.set('so-auth',{token:r.token,seat:r.seat});location.reload();return''},
+  logout(){const n=this.q.length;if(n&&!confirm(`還有 ${n} 筆作答沒上傳，登出後要用同一台登入同一個座號才會補傳。確定登出？`))return;
+    LS.del('so-auth');location.reload()},
+
+  /* ---- 進度：快取與拉取 ---- */
+  cache(book,save){if(!APP.me)return;const c=LS.get(this.key('sv',book))||{ver:0};c.save=save;LS.set(this.key('sv',book),c)},
+  cached(book){const c=APP.me&&LS.get(this.key('sv',book));return c&&typeof c.save==='string'?c:null},
+  /* 拉某一本：佇列裡沒有這本待送的事件，才用伺服器的進度蓋掉本機（有的話等送完再拉） */
+  async pull(book){if(!APP.me||!APP.me.token||APP.paused)return false;
+    const r=await this.post({action:'so_pull',token:APP.me.token,book});if(this.check(r)!=='ok')return false;
+    this.setMe(r);const c=LS.get(this.key('sv',book))||{ver:0};
+    if(!this.q.some(x=>x.b===book)&&!this.mid[book]){APP.save[book]=decodeSave(r.save);LS.set(this.key('sv',book),{save:r.save,ver:r.ver})}
+    else LS.set(this.key('sv',book),{save:c.save||r.save,ver:r.ver});
+    return true},
+  /* 開機後在背景跑：各本拉一次 → 重畫 → 送出還沒送的 */
+  async start(){if(!APP.me||!APP.me.token){if(APP.me)loginDlg();return}
+    const ok=await Promise.all(DATA.index.books.map(b=>this.pull(b.code)));
+    if(ok.some(Boolean))APP.afterPlay();acctUI();this.flush(true)},
+
+  /* ---- 上傳佇列（§7：滿 5 筆、過 30 秒、回合結束、離開頁面） ---- */
+  saveQ(){LS.set(this.key('q'),this.q);acctUI()},
+  enqueue(book,e){const k=this.key('seq',book),s=(LS.get(k)||0)+1;LS.set(k,s);this.q.push({b:book,s,e});this.saveQ();
+    if(this.q.length>=5)this.flush();else this.soon()},
+  setMid(book,mid){if(mid)this.mid[book]=mid;else delete this.mid[book];this.soon()},
+  soon(ms=30000){if(!this.timer)this.timer=setTimeout(()=>{this.timer=null;this.flush()},ms)},
+  async flush(now){if(this.busy||!APP.me||!APP.me.token||APP.paused||!this.url)return;
+    const books=[...new Set([...booksIn(this.q),...Object.keys(this.mid)])];if(!books.length)return;
+    clearTimeout(this.timer);this.timer=null;this.busy=true;let res='ok';
+    try{if(!now)await sleep(Math.random()*3000); /* 隨機錯開 0–3 秒，全班同時按不會擠在同一秒 */
+      for(const b of books){res=await this.pushBook(b);if(res!=='ok')break}}
+    finally{this.busy=false}
+    if(res==='retry'){this.fails++;this.soon(backoff(this.fails))}
+    else if(res==='ok'){this.fails=0;if(this.q.length||Object.keys(this.mid).length)this.soon(1000)}
+    acctUI()},
+  async pushBook(b){const bt=takeBatch(this.q,b),mid=this.mid[b]||null;if(!bt&&!mid)return'ok';
+    const body=()=>({action:'so_push',token:APP.me.token,book:b,dev:this.dev,seq0:bt?bt.seq0:(LS.get(this.key('seq',b))||0)+1,ev:bt?bt.ev:[],mid});
+    let r=await this.post(body());
+    if(r&&r.needPull){if(!await this.pull(b))return'retry';r=await this.post(body())} /* 伺服器暫存區沒有這格：先拉一次再重送 */
+    const c=this.check(r);if(c!=='ok')return c;
+    if(bt){this.q=dropUpTo(this.q,b,bt.last);this.saveQ()}
+    if(this.mid[b]===mid)delete this.mid[b];
+    this.setMe(r);const sv=LS.get(this.key('sv',b));if(sv){sv.ver=r.ver;LS.set(this.key('sv',b),sv)}
+    /* 送出的有回合結束或卡冊 → 這本送完就拉一次，用伺服器算的進度為準（兩台載具時也一致） */
+    if(bt&&bt.ev.some(e=>e[0]==='e'||e[0]==='c')&&!this.q.some(x=>x.b===b)&&await this.pull(b))APP.afterPlay();
+    return'ok'},
+  /* 離開頁面：用 sendBeacon 送（拿不到回覆，所以佇列不清，下次照送、代理靠 seq 去重） */
+  beacon(){if(!APP.me||!APP.me.token||APP.paused||!this.url||!navigator.sendBeacon)return;
+    for(const b of new Set([...booksIn(this.q),...Object.keys(this.mid)])){const bt=takeBatch(this.q,b);
+      const body={action:'so_push',token:APP.me.token,book:b,dev:this.dev,seq0:bt?bt.seq0:(LS.get(this.key('seq',b))||0)+1,ev:bt?bt.ev:[],mid:this.mid[b]||null};
+      try{navigator.sendBeacon(this.url,new Blob([JSON.stringify(body)],{type:'text/plain'}))}catch(e){}}},
+
+  /* ---- 排行榜 ---- */
+  async rank(){if(!APP.me||!APP.me.token)return null;const r=await this.post({action:'so_rank',token:APP.me.token,scope:this.rk.scope,metric:this.rk.metric});
+    return this.check(r)==='ok'?r:{err:r&&r.error||'排行榜讀不到，請檢查網路'}}};
+
+addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')API.beacon();else API.flush()});
+addEventListener('pagehide',()=>API.beacon());
+addEventListener('online',()=>API.flush(true));
+
+/* ---------- 標頭：模式、待上傳、登入／登出 ---------- */
+function acctUI(){const m=$('#mode'),b=$('#acct');if(!m||!b)return;
+  if(!APP.me){m.textContent=API.url?'試玩中，不會記錄':'試玩中（連不到伺服器）';m.className='mode';b.textContent='登入';b.hidden=!API.url;b.onclick=loginDlg;return}
+  const n=API.q.length;
+  m.textContent=APP.paused?'暫停中：只能試玩、不會記錄':!APP.me.token?`${APP.me.seat} 號・請重新登入`:API.err?`${APP.me.seat} 號・${API.err}`:n?`${APP.me.seat} 號・待上傳 ${n} 筆${API.online?'':'（離線）'}`:`${APP.me.seat} 號・已記錄`;
+  m.className='mode'+(APP.paused||API.err||!APP.me.token?'':' in');
+  if(!APP.me.token){b.textContent='重新登入';b.onclick=loginDlg}else{b.textContent='登出';b.onclick=()=>API.logout()}b.hidden=false}
+
+function loginDlg(){if($('#dlg'))return;const d=document.createElement('div');d.id='dlg';d.className='dlg';
+  const seat=APP.me?APP.me.seat:'';
+  d.innerHTML=`<form class="box" role="dialog" aria-label="登入自學星圖"><h2>登入自學星圖</h2>
+   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。</p>
+   <label>座號<input name="seat" type="number" inputmode="numeric" min="1" required value="${seat}"></label>
+   <label>查詢碼<input name="code" type="password" autocomplete="off" required></label>
+   <p class="err" id="lerr" role="alert"></p>
+   <div class="row"><button class="btn" type="submit">登入</button><button class="btn ghost" type="button" id="lno">先試玩</button></div></form>`;
+  document.body.append(d);const f=d.querySelector('form');f.seat.value?f.code.focus():f.seat.focus();
+  d.querySelector('#lno').onclick=()=>d.remove();
+  f.onsubmit=async e=>{e.preventDefault();const btn=f.querySelector('[type=submit]');btn.disabled=true;btn.textContent='登入中…';
+    const msg=await API.login(Math.floor(Number(f.seat.value)),f.code.value);
+    if(msg){$('#lerr').textContent=msg;btn.disabled=false;btn.textContent='登入'}}}
 
 /* ===== music.js ===== */
 /* ---------- （搬自範本 10）各區背景音樂＋成套音效（全部由程式合成，沒有音檔） ---------- */
@@ -1425,14 +1712,14 @@ return{TH,sfx,zone,set,toggle:()=>set(!on),duck:v=>{if(duck!==v){duck=v;apply()}
   b.textContent=G8.snd?'🔊 音效：開':'🔇 音效：關';b.onclick=()=>G8.setSnd(!G8.snd);document.body.append(b);addEventListener('pointerdown',()=>{if(G8.snd)G8.unlock()},{once:true})})();
 let BOOTED=false;
 async function boot(again){const msg=$('#loading');
-  try{if(!again){await Promise.all([loadIndex(),loadExams()]);await Promise.all(DATA.index.books.map(b=>loadBook(b.code)));APP.restore()}
+  try{if(!again){await Promise.all([loadIndex(),loadExams()]);await Promise.all(DATA.index.books.map(b=>loadBook(b.code)));await API.init();APP.restore()}
     R=buildRegions();applyProgress(R,APP.save);
     if(!R.length){msg.textContent='目前還沒有開放的題本，請等老師準備好。';msg.hidden=false;return}
     msg.hidden=true;
     if(again&&M3){location.reload();return} /* 換題本＝地圖要重排，重新載入最單純（試玩進度存在分頁裡，不會掉） */
     $('#lg').hidden=!R.some(r=>r.units.some(u=>u.ex));
     if(makeM3()){const g0=go;go=function(v){g0(v);M3.cam3(v)}}
-    BOOTED=true;go(view)}
+    BOOTED=true;go(view);API.start()}
   catch(e){console.error(e);msg.hidden=false;msg.innerHTML='題本讀不到，請檢查網路後<button class="btn" onclick="location.reload()">重新整理</button>'}}
 boot();
 </script>

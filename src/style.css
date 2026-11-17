@@ -326,3 +326,29 @@ nav button{min-height:44px}
  #g8play .stage{min-height:calc(100dvh - 2*clamp(8px,2vw,20px))}}
 /* 手機：右下角的音樂／音效浮動鈕不要蓋住側欄最後幾行 */
 @media(max-width:600px){main{padding-bottom:140px}}
+
+/* ---------- 第 4 步：登入、今日任務、排行榜 ---------- */
+.mode.in{background:#123d2a;color:#b9f0cf;border-color:#2f8a5c}
+header .acct{margin-top:0;min-height:44px;padding:6px 16px}
+.trial-note .lnk{margin-left:6px;color:#ffd166;text-decoration:underline}
+.dlg{position:fixed;inset:0;z-index:60;background:#080c28d9;display:grid;place-items:center;padding:16px}
+.dlg .box{background:#151d4a;border:1px solid var(--line);border-radius:16px;padding:18px 20px;width:min(400px,100%);box-sizing:border-box;max-height:calc(100dvh - 32px);overflow:auto}
+.dlg h2{margin:0 0 6px}
+.dlg label{display:block;margin:10px 0 0;font-weight:700}
+.dlg input{display:block;width:100%;box-sizing:border-box;margin-top:4px;font:inherit;font-size:20px;padding:8px 12px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#0d1436;color:var(--ink)}
+.dlg .err{color:#ffb3b3;min-height:1.4em;margin:8px 0 0}
+.dlg .row{display:flex;gap:10px;flex-wrap:wrap}
+.dlg .btn{min-height:44px}
+.tasks{list-style:none;padding:0;margin:0 0 8px;display:grid;gap:6px}
+.tasks li{display:flex;gap:8px;align-items:flex-start;background:#0d1436;border-radius:10px;padding:6px 10px}
+.tasks li.ok{opacity:.75}
+.tasks small{display:block;opacity:.75}
+#toNext,#resume{min-height:44px}
+.rk{max-width:640px;margin:auto}
+.seg2{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.seg2 .btn{margin-top:0;min-height:44px}
+.rkt{width:100%;border-collapse:collapse;margin-top:8px;font-size:18px}
+.rkt th,.rkt td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left}
+.rkt tr.me td{background:#3a2f0a;color:var(--gold);font-weight:800}
+.rkt tr.gap td{text-align:center;opacity:.7}
+.cu{font-weight:700;color:var(--gold)}

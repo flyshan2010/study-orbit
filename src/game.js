@@ -20,17 +20,21 @@ const LETTER='ABCD';
 const SAY=['島上 7 盞燈熄了，答對一題就點亮一盞。卡關時點「查看提示」，我一步一步給你線索。','好的開始！慢慢想，不用趕。','第三盞了，再亮一盞就過半。','過半了！繼續穩穩來。','越來越難囉，先讀清楚題目。','剩兩題！','最後一題！過關就能翻一張故事卡。'];
 
 function open(lv){LV=lv;MODE='round';$('#g8play').hidden=false;document.body.style.overflow='hidden';intro()}
-function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.afterPlay()}
-function modeChips(){return APP.me?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
+function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.afterPlay();if(APP.rec())API.flush()}
+function modeChips(){return APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
 function intro(){const best=APP.best(LV);
   S.innerHTML=`<div class="intro"><button class="ghost" data-act="quit">← 回到地圖</button><div class="where">${LV.crumb}</div><h2>${LV.title}</h2>
    <div class="owl">${OWL}</div><div class="say">島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
    <div class="chips"><span class="chip">${best?'最高紀錄 '+starStr(best):'第一次挑戰'}</span>${modeChips()}</div>
-   <button class="big" data-act="start">出發點燈！</button></div>`}
+   <button class="big" data-act="start">${LV.resume?'繼續闖關！':'出發點燈！'}</button></div>`}
 
 /* ---------- 一回合 ---------- */
-function start(){PL=planRound(LV.questions,LV.code);
-  st={n:0,res:Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ()}
+/* 開一回合；LV.resume＝換載具接續（resumeOf 還原的題目與燈），等再挑戰的格子直接進再挑戰 */
+function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:planRound(LV.questions,LV.code);
+  st={n:rs?rs.n:0,res:rs?rs.res.slice():Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ();
+  if(rs&&rs.pend.length&&st.it){st.wrongSlots=st.it.slots.map((s,i)=>rs.pend.includes(s)?i:-1).filter(i=>i>=0);retry()}}
+/* 每答完一次就記 mid（pend＝第一次答錯、等再挑戰的格子）；只有登入時才送 */
+function saveMid(pend){if(MODE==='round')APP.midSet(LV,midOf(LV.key,PL,st.n,st.res,pend||[]))}
 function nextQ(){if(st.n>=PL.length)return result();st.it=PL[st.n];st.q=st.it.q;st.re=false;st.wrong=[];st.wrongSlots=null;drawQ()}
 const slotOf=()=>st.it.slots[0];
 const levelTag=()=>{const s=LV.slots[slotOf()-1]||'';return s?s+'題':''};
@@ -38,10 +42,10 @@ function material(q){if(!q.group||!q.material)return'';
   if(q.materialType==='圖表'){try{const d=JSON.parse(q.material);if(Array.isArray(d.rows))return`<div class="mat"><table>${(d.head?`<tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`:'')+d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`}catch(e){}}
   return`<div class="mat">${esc(q.material).replace(/\n/g,'<br>')}</div>`}
 function head(){const lit=st.res.filter(r=>r&&r!=='dark').length,cur=st.it.slots;
-  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.me?APP.me.seat+' 號':'試玩'}</div>
+  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?APP.me.seat+' 號':'試玩'}</div>
     <div class="ttl"><span class="gcrumb">${LV.crumb}</span><h2>${LV.title}</h2></div>
     <div class="prog" aria-label="已點亮 ${lit} 盞，共 7 盞">${LV.slots.map((p,i)=>`<i class="mk${p==='應用'?' d':''} ${st.res[i]||''}${cur.includes(i+1)?' cur':''}"></i>`).join('')}
-      <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.me?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
+      <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.rec()?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
       <button class="snd" data-act="snd" aria-label="音效開關">${snd?'🔊':'🔇'}</button></div></div>`}
 function drawQ(){const q=st.q,s=st.it.slots;lock=false;st.sel=-1;st.pairs={};st.pl=null;st.hint=0;st.t0=Date.now();
   const no=s.length>1?`第 ${s[0]}～${s[s.length-1]} 盞（配合題，一對一盞）`:`第 ${s[0]} 題／共 7 題`;
@@ -94,10 +98,10 @@ function confirm(){if(MODE==='card')return cardConfirm();const q=st.q;if(lock)re
     setLight(slot,kind);bump(kind);
     if(st.re){APP.overcome(LV,st.wrong);toast('秘笈卡蓋上「已克服」章！');$('#say').textContent='你克服這個盲點了！秘笈卡收進卡冊，之後隨時能回來翻。'}
     else{toast(kind==='gold'?'金燈 +1':'銀燈 +1');$('#say').textContent=kind==='gold'?(st.combo>1?`答對了！連對 ${st.combo} 題，金燈再亮一盞。`:'答對了！金燈亮一盞。'):hints?'答對了！用了提示，這盞是銀燈；下次試試不靠提示。':'答對了！不過答得太快，這盞先給銀燈；下次讀完題目再作答。'}
-    toNext()}
+    saveMid();toNext()}
   else{bs[st.sel].classList.add('no');sfx('no');$('#owl').classList.add('tilt');bump('dark');
-    if(!st.re){st.wrong=cardsFor(q,letter);$('#say').textContent=st.wrong.length?'差一點！我有一張秘笈卡要送你。':'差一點！換一題同類的再試一次。';setTimeout(()=>giveCards(st.wrong),800)}
-    else{setLight(slot,'dark');bs.forEach((b,k)=>LETTER[k]===String(q.answer).toUpperCase()&&b.classList.add('ok'));showWhy(q);
+    if(!st.re){st.wrong=cardsFor(q,letter);saveMid([slot]);$('#say').textContent=st.wrong.length?'差一點！我有一張秘笈卡要送你。':'差一點！換一題同類的再試一次。';setTimeout(()=>giveCards(st.wrong),800)}
+    else{setLight(slot,'dark');saveMid();bs.forEach((b,k)=>LETTER[k]===String(q.answer).toUpperCase()&&b.classList.add('ok'));showWhy(q);
       $('#say').textContent='沒關係，這盞燈先留著，之後再回來點亮它。';toNext()}}}
 
 /* 配合題：一對一盞燈；第一次配錯的那幾對發卡、再挑戰換另一組配合題，只算原本配錯的那幾對 */
@@ -108,7 +112,7 @@ function confirmMatch(q,sec,nth,hints){const ok=judgeMatch(q,st.pairs),slots=st.
   APP.answerMatch(LV,slots,counted,q,st.pairs,hints,sec,nth,cardsFor(q,st.pairs));
   let bad=[];
   counted.forEach(i=>{const s=slots[i];if(ok[i]){const kind=st.re?'silver':slotLight({first:true,hinted:hints>0,fast:isFast(sec)}).light;setLight(s,kind);bump(kind)}else{bad.push(i);if(st.re)setLight(s,'dark');bump('dark')}});
-  const right=counted.length-bad.length;
+  const right=counted.length-bad.length;saveMid(!st.re&&bad.length?bad.map(i=>slots[i]):[]);
   if(!bad.length){sfx('ok');$('#owl').classList.add('hop');if(st.re)APP.overcome(LV,st.wrong);
     $('#say').textContent=st.re?'配對都正確了！秘笈卡蓋上「已克服」章。':hints?'全部配對正確！用了提示，這幾盞是銀燈。':'全部配對正確！';toNext();return}
   sfx('no');$('#owl').classList.add('tilt');
@@ -130,7 +134,7 @@ function result(){const g=st.res.filter(r=>r==='gold').length,sv=st.res.filter(r
   S.innerHTML=`<div class="res"><h2>${sc===3?(g===7?'全對！太厲害了！':'燈籠全亮了！'):sc?'過關！':'再試一次就能過關'}</h2>
    <div class="stars">${[0,1,2].map(i=>`<span class="${i<sc?'on':''}" style="animation-delay:${.2+i*.25}s">★</span>`).join('')}</div>
    <div class="lans" style="flex:none">${st.res.map(x=>`<div class="lan ${x}"></div>`).join('')}</div>
-   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.me?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
+   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
    ${story?`<div id="myst">${r.storyNew?`<p style="margin:4px 0 8px;font-weight:800">選一張翻開，看看這一關的故事卡</p><div class="myst">${[0,1,2].map(i=>`<button class="mc" data-act="flip" aria-label="第 ${i+1} 張神祕卡">？</button>`).join('')}</div>`:`<div class="story">📖 ${esc(story.title)}<br><small>這張故事卡已經收集過了</small></div>`}</div>`:''}
    <div class="row"><button class="big" data-act="start">${sc===3?'再玩一次':'再挑戰（題目不同）'}</button><button class="ghost" data-act="quit">← 回到地圖</button></div></div>`}
 function flip(){const s=LV.story;$('#myst').innerHTML=`<div class="story">📖 <b>${esc(s.title)}</b><br>${esc(s.body)}<br><small>已收進故事卡圖鑑</small></div>`;sfx('card')}

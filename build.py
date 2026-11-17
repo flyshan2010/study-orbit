@@ -26,11 +26,11 @@ def module(name):
     return names, f'const {{{",".join(names)}}}=(()=>{{\n{s}\nreturn{{{",".join(names)}}}}})();'
 
 parts, exported = [], []
-for n in ['rules.mjs', 'play.mjs']:
+for n in ['rules.mjs', 'play.mjs', 'sync.mjs']:
     names, code = module(n)
     exported += names
     parts.append(f'/* ===== {n} ===== */\n' + code)
-plain = ['data.js', 'map.js', 'game.js', 'app.js', 'music.js', 'boot.js']
+plain = ['data.js', 'map.js', 'game.js', 'app.js', 'api.js', 'music.js', 'boot.js']
 for n in plain:
     s = read(n)
     for x in exported:   # 撞名檢查：一般腳本不可再宣告同名的頂層函式或變數
