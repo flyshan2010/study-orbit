@@ -45,7 +45,7 @@ async function post(body) {
   finally { clearTimeout(to); ST.inflight--; }
   if (r) kind = r.ok ? 'ok' : r.needPull ? 'needPull' : r.relogin ? 'relogin' : r.retry ? 'busy' : r.paused ? 'paused' : 'error';
   const ms = Date.now() - t0;
-  ST.req.push({ a: body.action, kind, ms, t: t0, lockMs: r && typeof r.lockMs === 'number' ? r.lockMs : null });
+  ST.req.push({ a: body.action, kind, ms, t: t0, lockMs: r && typeof r.lockMs === 'number' ? r.lockMs : null, lockWait: r && typeof r.lockWait === 'number' ? r.lockWait : null });
   if (kind !== 'ok' && kind !== 'needPull' && ST.samples.length < 40) ST.samples.push({ a: body.action, kind, at: new Date(t0).toISOString(), msg: (r && r.error) || text.replace(/\s+/g, ' ').slice(0, 300) });
   return r;
 }
@@ -217,7 +217,9 @@ function report() {
   const out = {};
   for (const a in by) out[a] = { n: by[a].n, kinds: by[a].kinds, p50: pct(by[a].ms, 0.5), p95: pct(by[a].ms, 0.95), max: Math.max(...by[a].ms) };
   const lock = ST.req.filter((x) => x.lockMs != null).map((x) => x.lockMs);
-  return { requests: out, lockMs: { n: lock.length, p50: pct(lock, 0.5), p95: pct(lock, 0.95), max: lock.length ? Math.max(...lock) : null }, peakInflight: ST.peak, samples: ST.samples };
+  const wait = ST.req.filter((x) => x.lockWait != null).map((x) => x.lockWait); // v2.23 起：等待鎖（標準 ⑤）與持鎖分開
+  return { requests: out, lockMs: { n: lock.length, p50: pct(lock, 0.5), p95: pct(lock, 0.95), max: lock.length ? Math.max(...lock) : null },
+    lockWait: { n: wait.length, p50: pct(wait, 0.5), p95: pct(wait, 0.95), max: wait.length ? Math.max(...wait) : null }, peakInflight: ST.peak, samples: ST.samples };
 }
 
 /* ---------- 主程式 ---------- */
