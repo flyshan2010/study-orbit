@@ -301,6 +301,10 @@ nav button{min-height:44px}
 .g8 .chip.trial{background:#4a2f12;color:#ffd9a0}
 .g8 .mat{background:#fff8e6;color:#3a2a10;border-left:6px solid #e8b87a;border-radius:12px;padding:10px 14px;margin:6px 0 10px;font-size:clamp(16px,2.2vw,19px);line-height:1.8;max-width:820px;width:100%;margin-inline:auto;max-height:38vh;overflow:auto}
 .g8 .mat table{border-collapse:collapse}.g8 .mat td,.g8 .mat th{border:1px solid #c9b88a;padding:2px 10px}
+/* 圖表素材（chart.mjs，P1 SPEC §3.6.1）：標題在圖下方；手機縮小內距讓圖大一點 */
+.g8 .mat .chart{margin:0}.g8 .mat .chart svg{display:block;width:100%;max-width:560px;max-height:32vh;margin:0 auto}
+.g8 .mat .chart figcaption{text-align:center;font-weight:800;font-size:.95em;margin-top:2px}.g8 .mat .chart table{margin:4px auto 0}
+@media(max-width:600px){.g8 .mat.chartmat{padding:8px;border-left-width:4px}}
 .g8 .opts.long{grid-template-columns:1fr}
 .g8 .opts.long .gopt{font-size:clamp(17px,2.4vw,22px);min-height:56px;text-align:left;display:flex;align-items:center;gap:10px;padding:10px 14px}
 .g8 .match{display:grid;grid-template-columns:1fr 1fr;gap:clamp(8px,2vw,24px);max-width:900px;width:100%;margin:0 auto}
@@ -319,7 +323,7 @@ nav button{min-height:44px}
 .g8 .qbody{display:flex;flex-direction:column;gap:6px}
 .g8 .qmain{display:flex;flex-direction:column;gap:clamp(8px,1.4vw,14px)}
 @media(min-width:1000px) and (min-aspect-ratio:5/4){.g8 .qbody{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:20px;align-items:start}
- .g8 .qbody .mat{margin:0;max-height:none}.g8 .qbody .q{font-size:clamp(20px,2.2vw,26px)}}
+ .g8 .qbody .mat{margin:0;max-height:none}.g8 .qbody .mat .chart svg{max-height:62vh}.g8 .qbody .q{font-size:clamp(20px,2.2vw,26px)}}
 .crumb button{min-height:44px}
 .g8 .snd,.g8 .musb{width:44px!important;height:44px!important}
 .g8 .back{min-height:44px}

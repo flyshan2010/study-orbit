@@ -26,7 +26,7 @@ def module(name):
     return names, f'const {{{",".join(names)}}}=(()=>{{\n{s}\nreturn{{{",".join(names)}}}}})();'
 
 parts, exported = [], []
-for n in ['rules.mjs', 'play.mjs', 'sync.mjs']:
+for n in ['rules.mjs', 'play.mjs', 'sync.mjs', 'chart.mjs']:
     names, code = module(n)
     exported += names
     parts.append(f'/* ===== {n} ===== */\n' + code)

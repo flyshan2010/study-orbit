@@ -38,8 +38,9 @@ function saveMid(pend){if(MODE==='round')APP.midSet(LV,midOf(LV.key,PL,st.n,st.r
 function nextQ(){if(st.n>=PL.length)return result();st.it=PL[st.n];st.q=st.it.q;st.re=false;st.wrong=[];st.wrongSlots=null;drawQ()}
 const slotOf=()=>st.it.slots[0];
 const levelTag=()=>{const s=LV.slots[slotOf()-1]||'';return s?s+'題':''};
-function material(q){if(!q.group||!q.material)return'';
-  if(q.materialType==='圖表'){try{const d=JSON.parse(q.material);if(Array.isArray(d.rows))return`<div class="mat"><table>${(d.head?`<tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`:'')+d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`}catch(e){}}
+/* 共用素材：圖表由 chart.mjs 依 JSON 畫（P1 SPEC §3.6.1；圖表單題沒有題組也有圖）；畫不出來才退回顯示原文 */
+function material(q){if(!q.material)return'';
+  if(q.materialType==='圖表'){let d=null;try{d=JSON.parse(q.material)}catch(e){}const h=drawChart(d);if(h)return`<div class="mat chartmat">${h}</div>`}
   return`<div class="mat">${esc(q.material).replace(/\n/g,'<br>')}</div>`}
 function head(){const lit=st.res.filter(r=>r&&r!=='dark').length,cur=st.it.slots;
   return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?seatTxt(APP.me.seat):'試玩'}</div>
