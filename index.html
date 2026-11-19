@@ -1228,7 +1228,7 @@ function material(q){if(!q.group||!q.material)return'';
   if(q.materialType==='圖表'){try{const d=JSON.parse(q.material);if(Array.isArray(d.rows))return`<div class="mat"><table>${(d.head?`<tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`:'')+d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`}catch(e){}}
   return`<div class="mat">${esc(q.material).replace(/\n/g,'<br>')}</div>`}
 function head(){const lit=st.res.filter(r=>r&&r!=='dark').length,cur=st.it.slots;
-  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?APP.me.seat+' 號':'試玩'}</div>
+  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?seatTxt(APP.me.seat):'試玩'}</div>
     <div class="ttl"><span class="gcrumb">${LV.crumb}</span><h2>${LV.title}</h2></div>
     <div class="prog" aria-label="已點亮 ${lit} 盞，共 7 盞">${LV.slots.map((p,i)=>`<i class="mk${p==='應用'?' d':''} ${st.res[i]||''}${cur.includes(i+1)?' cur':''}"></i>`).join('')}
       <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.rec()?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
@@ -1471,7 +1471,7 @@ async function drawBoard(){const lb=$('#lb');
   lb.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{S.metric=b.dataset.mt;drawBoard()});
   const want=S.scope+'|'+S.metric,r=await API.rank(),box=$('#rkl');if(!box||want!==S.scope+'|'+S.metric)return;
   if(!r||r.err){box.innerHTML=`<p class="mut">${esc(r?r.err:'請先登入')}</p>`;return}
-  const unit=S.metric==='progress'?' 關':' ★',me=APP.me.seat,row=x=>`<tr class="${x.seat===me?'me':''}"><td>${x.rank}</td><td>${x.seat} 號${x.seat===me?'（你）':''}</td><td>${x.value}${unit}</td></tr>`;
+  const unit=S.metric==='progress'?' 關':' ★',me=APP.me.seat,row=x=>`<tr class="${x.seat===me?'me':''}"><td>${x.rank}</td><td>${seatTxt(x.seat)}${x.seat===me?'（你）':''}</td><td>${x.value}${unit}</td></tr>`;
   const inTop=r.me&&r.top.some(x=>x.seat===r.me.seat);
   box.innerHTML=(r.top.length?`<table class="rkt"><thead><tr><th>名次</th><th>座號</th><th>${MET[S.metric]}</th></tr></thead><tbody>${r.top.map(row).join('')}${r.me&&!inTop?'<tr class="gap"><td colspan="3">⋯</td></tr>'+row(r.me):''}</tbody></table>`:'<p class="mut">還沒有人上榜，闖完一關就會出現。</p>')
    +(r.me?`<p class="cu">${r.me.rank===1?'🥇 你是第一名！':esc(catchUpText(S.metric,r.catchUp))}</p>`:'<p class="mut">你在這個排行還沒有成績，闖完一關就會上榜。</p>')
@@ -1574,14 +1574,16 @@ addEventListener('online',()=>API.flush(true));
 function acctUI(){const m=$('#mode'),b=$('#acct');if(!m||!b)return;
   if(!APP.me){m.textContent=API.url?'試玩中，不會記錄':'試玩中（連不到伺服器）';m.className='mode';b.textContent='登入';b.hidden=!API.url;b.onclick=loginDlg;return}
   const n=API.q.length;
-  m.textContent=APP.paused?'暫停中：只能試玩、不會記錄':!APP.me.token?`${APP.me.seat} 號・請重新登入`:API.err?`${APP.me.seat} 號・${API.err}`:n?`${APP.me.seat} 號・待上傳 ${n} 筆${API.online?'':'（離線）'}`:`${APP.me.seat} 號・已記錄`;
+  m.textContent=APP.paused?'暫停中：只能試玩、不會記錄':!APP.me.token?`${seatTxt(APP.me.seat)}・請重新登入`:API.err?`${seatTxt(APP.me.seat)}・${API.err}`:n?`${seatTxt(APP.me.seat)}・待上傳 ${n} 筆${API.online?'':'（離線）'}`:`${seatTxt(APP.me.seat)}・已記錄`;
   m.className='mode'+(APP.paused||API.err||!APP.me.token?'':' in');
   if(!APP.me.token){b.textContent='重新登入';b.onclick=loginDlg}else{b.textContent='登出';b.onclick=()=>API.logout()}b.hidden=false}
 
+/* 座號顯示：901–954＝體驗帳號（自己的座號＋體驗碼登入，代理 v2.25），畫面寫「體驗 N 號」 */
+function seatTxt(s){s=Number(s);return s>900?`體驗 ${s-900} 號`:`${s} 號`}
 function loginDlg(){if($('#dlg'))return;const d=document.createElement('div');d.id='dlg';d.className='dlg';
-  const seat=APP.me?APP.me.seat:'';
+  const seat=APP.me&&APP.me.seat?(APP.me.seat>900?APP.me.seat-900:APP.me.seat):'';
   d.innerHTML=`<form class="box" role="dialog" aria-label="登入自學星圖"><h2>登入自學星圖</h2>
-   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。</p>
+   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。<br>全班試玩：座號填自己的，查詢碼改填老師給的<b>體驗碼</b>（另外記錄，不影響自己的帳號）。</p>
    <label>座號<input name="seat" type="number" inputmode="numeric" min="1" required value="${seat}"></label>
    <label>查詢碼<input name="code" type="password" autocomplete="off" required></label>
    <p class="err" id="lerr" role="alert"></p>

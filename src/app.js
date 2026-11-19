@@ -114,7 +114,7 @@ async function drawBoard(){const lb=$('#lb');
   lb.querySelectorAll('[data-mt]').forEach(b=>b.onclick=()=>{S.metric=b.dataset.mt;drawBoard()});
   const want=S.scope+'|'+S.metric,r=await API.rank(),box=$('#rkl');if(!box||want!==S.scope+'|'+S.metric)return;
   if(!r||r.err){box.innerHTML=`<p class="mut">${esc(r?r.err:'請先登入')}</p>`;return}
-  const unit=S.metric==='progress'?' 關':' ★',me=APP.me.seat,row=x=>`<tr class="${x.seat===me?'me':''}"><td>${x.rank}</td><td>${x.seat} 號${x.seat===me?'（你）':''}</td><td>${x.value}${unit}</td></tr>`;
+  const unit=S.metric==='progress'?' 關':' ★',me=APP.me.seat,row=x=>`<tr class="${x.seat===me?'me':''}"><td>${x.rank}</td><td>${seatTxt(x.seat)}${x.seat===me?'（你）':''}</td><td>${x.value}${unit}</td></tr>`;
   const inTop=r.me&&r.top.some(x=>x.seat===r.me.seat);
   box.innerHTML=(r.top.length?`<table class="rkt"><thead><tr><th>名次</th><th>座號</th><th>${MET[S.metric]}</th></tr></thead><tbody>${r.top.map(row).join('')}${r.me&&!inTop?'<tr class="gap"><td colspan="3">⋯</td></tr>'+row(r.me):''}</tbody></table>`:'<p class="mut">還沒有人上榜，闖完一關就會出現。</p>')
    +(r.me?`<p class="cu">${r.me.rank===1?'🥇 你是第一名！':esc(catchUpText(S.metric,r.catchUp))}</p>`:'<p class="mut">你在這個排行還沒有成績，闖完一關就會上榜。</p>')

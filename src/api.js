@@ -94,14 +94,16 @@ addEventListener('online',()=>API.flush(true));
 function acctUI(){const m=$('#mode'),b=$('#acct');if(!m||!b)return;
   if(!APP.me){m.textContent=API.url?'試玩中，不會記錄':'試玩中（連不到伺服器）';m.className='mode';b.textContent='登入';b.hidden=!API.url;b.onclick=loginDlg;return}
   const n=API.q.length;
-  m.textContent=APP.paused?'暫停中：只能試玩、不會記錄':!APP.me.token?`${APP.me.seat} 號・請重新登入`:API.err?`${APP.me.seat} 號・${API.err}`:n?`${APP.me.seat} 號・待上傳 ${n} 筆${API.online?'':'（離線）'}`:`${APP.me.seat} 號・已記錄`;
+  m.textContent=APP.paused?'暫停中：只能試玩、不會記錄':!APP.me.token?`${seatTxt(APP.me.seat)}・請重新登入`:API.err?`${seatTxt(APP.me.seat)}・${API.err}`:n?`${seatTxt(APP.me.seat)}・待上傳 ${n} 筆${API.online?'':'（離線）'}`:`${seatTxt(APP.me.seat)}・已記錄`;
   m.className='mode'+(APP.paused||API.err||!APP.me.token?'':' in');
   if(!APP.me.token){b.textContent='重新登入';b.onclick=loginDlg}else{b.textContent='登出';b.onclick=()=>API.logout()}b.hidden=false}
 
+/* 座號顯示：901–954＝體驗帳號（自己的座號＋體驗碼登入，代理 v2.25），畫面寫「體驗 N 號」 */
+function seatTxt(s){s=Number(s);return s>900?`體驗 ${s-900} 號`:`${s} 號`}
 function loginDlg(){if($('#dlg'))return;const d=document.createElement('div');d.id='dlg';d.className='dlg';
-  const seat=APP.me?APP.me.seat:'';
+  const seat=APP.me&&APP.me.seat?(APP.me.seat>900?APP.me.seat-900:APP.me.seat):'';
   d.innerHTML=`<form class="box" role="dialog" aria-label="登入自學星圖"><h2>登入自學星圖</h2>
-   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。</p>
+   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。<br>全班試玩：座號填自己的，查詢碼改填老師給的<b>體驗碼</b>（另外記錄，不影響自己的帳號）。</p>
    <label>座號<input name="seat" type="number" inputmode="numeric" min="1" required value="${seat}"></label>
    <label>查詢碼<input name="code" type="password" autocomplete="off" required></label>
    <p class="err" id="lerr" role="alert"></p>

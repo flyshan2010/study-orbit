@@ -42,7 +42,7 @@ function material(q){if(!q.group||!q.material)return'';
   if(q.materialType==='圖表'){try{const d=JSON.parse(q.material);if(Array.isArray(d.rows))return`<div class="mat"><table>${(d.head?`<tr>${d.head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr>`:'')+d.rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</table></div>`}catch(e){}}
   return`<div class="mat">${esc(q.material).replace(/\n/g,'<br>')}</div>`}
 function head(){const lit=st.res.filter(r=>r&&r!=='dark').length,cur=st.it.slots;
-  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?APP.me.seat+' 號':'試玩'}</div>
+  return`<div class="qh"><button class="back" data-act="quit">← 回到地圖</button><div class="ava">${APP.rec()?seatTxt(APP.me.seat):'試玩'}</div>
     <div class="ttl"><span class="gcrumb">${LV.crumb}</span><h2>${LV.title}</h2></div>
     <div class="prog" aria-label="已點亮 ${lit} 盞，共 7 盞">${LV.slots.map((p,i)=>`<i class="mk${p==='應用'?' d':''} ${st.res[i]||''}${cur.includes(i+1)?' cur':''}"></i>`).join('')}
       <span class="combo${st.combo>1?' on':''}" id="combo">🔥 連對 ${st.combo}</span>${APP.rec()?`<span class="task">今日任務 ${APP.me.today.done.length}／3</span>`:''}
