@@ -36,12 +36,18 @@ function bookOf(subj){const bs=DATA.index.books.filter(b=>b.subject===subj);if(!
 function setBookOf(subj,code){try{localStorage.setItem('so-book-'+subj,code)}catch(e){}}
 const shortKey=(book,code)=>code.slice(book.length+1); /* c-h-4a-1-1 → 1-1（存檔的鍵省略題本代碼） */
 
+/* 單元／課次名稱：國語「第一課 美麗島」（課名取關卡名「・」前段），其他科「三、家鄉的傳統信仰與老街」 */
+const zhNum=n=>{n=Number(n);const d='〇一二三四五六七八九';if(!(n>0&&n<100))return String(n);return n<10?d[n]:(n<20?'':d[Math.floor(n/10)])+'十'+(n%10?d[n%10]:'')};
+function unitName(subj,isl){const id=isl.id,lv=(isl.levels||[])[0];
+  if(subj==='國語'){const ln=lv&&String(lv.name).includes('・')?String(lv.name).split('・')[0]:isl.name;return '第'+zhNum(id)+'課 '+ln}
+  return zhNum(id)+'、'+isl.name}
+
 /* 由題本結構排出 R（字串一律先跳脫，地圖用 innerHTML 畫）；進度另由 applyProgress 填（地圖物件要沿用，不能重建） */
 function buildRegions(){
   return SUBJ_ORDER.map(subj=>{const T=THEME[subj],b=bookOf(subj);if(!b)return null;
     const islands=(b.structure&&b.structure.islands)||[];
     const units=islands.map((isl,i)=>{const lvs=isl.levels||[];
-      return{n:esc(isl.name),u:'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
+      return{n:esc(isl.name),un:esc(unitName(subj,isl)),u:'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
         lv:lvs.map(l=>esc(l.name)),pin:lvs.map(l=>esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
         keys:lvs.map(l=>shortKey(b.code,l.code)),exam:lvs.map(l=>l.exam||''),slots:lvs.map(l=>l.slots||[]),
         ex:lvs.length>0&&lvs.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false}});

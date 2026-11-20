@@ -64,7 +64,7 @@ function drawRegion(r){const U=r.units,n=U.length,cols=n>5?5:n,rows=Math.ceil(n/
   const pos=U.map((u,i)=>{const row=Math.floor(i/cols),k=i%cols,cc=row%2?cols-1-k:k,w=920/cols;return[40+w*(cc+.5),rows>1?215+row*250:330+(i%2?40:-40)]});
   s+=`<path d="M${pos.map(p=>p[0].toFixed(0)+' '+p[1].toFixed(0)).join('L')}" fill="none" stroke="#fff" stroke-width="4" stroke-dasharray="2 10" stroke-linecap="round" opacity=".7"/>`;
   U.forEach((u,i)=>{const[x,y]=pos[i],rx=n>5?74:100,ry=n>5?50:66,gl=r.gl.slice((i%2),(i%2)+4);u.x=x;u.y=y;
-    s+=`<g class="hit" data-go="island" data-r="${r.id}" data-u="${i}" tabindex="0" role="button" aria-label="${u.n}">`+land(x,y,rx,ry,r.c,i*19+r.ang+400,r.lock)+scatter(x,y,rx*.9,ry*.75,gl,r.c,n>5?6:9,i*23+r.ang+900,.9,u.lm)+label(x,y+ry+26,u.n,r.lock?u.u:`${u.u}・${u.done}／${u.total} 關`)+`</g>`});
+    s+=`<g class="hit" data-go="island" data-r="${r.id}" data-u="${i}" tabindex="0" role="button" aria-label="${u.n}">`+land(x,y,rx,ry,r.c,i*19+r.ang+400,r.lock)+scatter(x,y,rx*.9,ry*.75,gl,r.c,n>5?6:9,i*23+r.ang+900,.9,u.lm)+label(x,y+ry+26,u.un,r.lock?u.u:`${u.u}・${u.done}／${u.total} 關`)+`</g>`});
   svg.innerHTML=s}
 
 function drawIsland(r,ui){const u=r.units[ui],L=u.lv,n=L.length;let s=sea+starfield(21)+`<ellipse cx="500" cy="350" rx="470" ry="290" fill="url(#g)" opacity=".8"/>`+land(500,350,400,215,r.c,ui*19+r.ang+400)+scatter(500,300,380,150,r.gl,r.c,34,ui*41+r.ang,1.25)+at(500,250,3.2,GL[u.lm](r.c));
@@ -333,7 +333,7 @@ function buildPins(){const box=$('#pins');box.innerHTML='';PINS.length=0;
   const add=(k,o,html,cls,fn)=>{const b=document.createElement('button');b.className='pin '+cls;b.innerHTML=html;b.onclick=fn;b.style.display='none';box.appendChild(b);PINS.push(Object.assign({k,el:b},o))};
   add('castle',{p:[0,(TOP+5.2)*1.3,0]},'🏯 皇城<small>我的自學情況</small>','pc',()=>go({k:'castle'}));
   VR.forEach(r=>{add('reg',{r:r.id,p:[r.X3*1.05,3.4,r.Z3*1.05]},`<i style="background:${r.c.t1}"></i><b>${r.name}</b>・${r.zone}<small>${r.lock?'待建':r.done+'／'+r.total+' 關'}</small>`,'pr'+(r.lock?' lk':''),()=>go({k:'region',r:r.id}));
-    r.units.forEach((u,ui)=>{add('isl',{r:r.id,u:ui,p:[u.X3,TOP+2.3*u.R3/2.2+1+(r.units.length>6&&ui%2?1.5:0),u.Z3]},`<span class="no">${ui+1}</span>${u.n}${r.sp3?(u.E3?'<em>已考</em>':'<em class="now">本次</em>'):''}<small>${r.lock?u.u:u.done+'／'+u.total}</small>`,'pi'+(r.lock?' lk':''),()=>r.lock?go({k:'region',r:r.id}):go({k:'island',r:r.id,u:ui}));
+    r.units.forEach((u,ui)=>{add('isl',{r:r.id,u:ui,p:[u.X3,TOP+2.3*u.R3/2.2+1+(r.units.length>6&&ui%2?1.5:0),u.Z3]},`${u.un}${r.sp3?(u.E3?'<em>已考</em>':'<em class="now">本次</em>'):''}<small>${r.lock?u.u:u.done+'／'+u.total}</small>`,'pi'+(r.lock?' lk':''),()=>r.lock?go({k:'region',r:r.id}):go({k:'island',r:r.id,u:ui}));
       if(u.N3[0]){const qc=u.N3[0].q-1,d=u.R3*.58,open=u.chest;add('chest',{r:r.id,u:ui,p:[u.X3+Math.cos(qc)*d,TOP+.6,u.Z3+Math.sin(qc)*d]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
       u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+.7,nd.z]},`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
