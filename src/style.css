@@ -288,7 +288,7 @@ nav button{min-height:44px}
 .btn.go{display:block;width:100%;font-size:18px;padding:12px;margin:4px 0 6px}
 .btn.on{outline:3px solid #fff}
 .lnk{background:none;border:0;color:var(--ink);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px 0;min-height:44px;text-align:left}
-.lvs .st{color:var(--gold);font-size:14px;white-space:nowrap}
+.lvs{list-style:none;padding-left:0}.lvs .st{color:var(--gold);font-size:14px;white-space:nowrap}
 .deck{list-style:none;padding:0}
 .deck .dk{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0d1436;border-radius:12px;padding:6px 10px;margin:6px 0}
 .deck .dk small{display:block;color:var(--mut);font-size:12px}
