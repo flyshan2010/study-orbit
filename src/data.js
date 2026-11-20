@@ -46,8 +46,10 @@ function unitName(subj,isl){const id=isl.id,lv=(isl.levels||[])[0];
 function buildRegions(){
   return SUBJ_ORDER.map(subj=>{const T=THEME[subj],b=bookOf(subj);if(!b)return null;
     const islands=(b.structure&&b.structure.islands)||[];
-    const units=islands.map((isl,i)=>{const lvs=isl.levels||[];
-      return{n:esc(isl.name),un:esc(unitName(subj,isl)),u:'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
+    /* 國語：一座島＝一課，島名＝單元名；單元序號讀題本 islands[].unit，沒填就依島名出現順序推（SPEC §7 地圖命名規則） */
+    const unames=[...new Set(islands.map(x=>x.name))],uno=isl=>subj==='國語'?(Number(isl.unit)||unames.indexOf(isl.name)+1):0;
+    const units=islands.map((isl,i)=>{const lvs=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+      return{n:esc(isl.name),un:esc(unitName(subj,isl)),uno:no,ul,u:ul||'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
         lv:lvs.map(l=>esc(l.name)),pin:lvs.map(l=>esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
         keys:lvs.map(l=>shortKey(b.code,l.code)),exam:lvs.map(l=>l.exam||''),slots:lvs.map(l=>l.slots||[]),
         ex:lvs.length>0&&lvs.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false}});

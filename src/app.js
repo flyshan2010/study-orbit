@@ -75,7 +75,7 @@ function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:dec
 function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.innerHTML=`<h2>${r.name}區・${r.zone}</h2><p class="mut">${r.bookTitle}｜${r.units.length} 座小島・${r.done}／${r.total} 關</p>`
   +(bs.length>1?`<h3>換一本題本</h3><div class="seg">${bs.map(b=>`<button class="btn${b.code===r.book?' on':''}" data-bk="${esc(b.code)}">${esc(b.title)}</button>`).join('')}</div>`:'')
-  +`<h3>小島</h3><ul>${r.units.map((u,i)=>`<li><button class="lnk" data-u="${i}">${u.un}</button>　${u.done}／${u.total} 關${u.chest?'・🎁':''}</li>`).join('')}</ul>`;
+  +`<h3>小島</h3><ul>${r.units.map((u,i)=>`${u.ul&&(!i||r.units[i-1].uno!==u.uno)?`<li class="uh">${u.ul}</li>`:''}<li><button class="lnk" data-u="${i}">${u.un}</button>　${u.done}／${u.total} 關${u.chest?'・🎁':''}</li>`).join('')}</ul>`;
   panel.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>go({k:'island',r:r.id,u:+b.dataset.u}));
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];

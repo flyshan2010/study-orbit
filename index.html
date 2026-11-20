@@ -295,7 +295,7 @@ nav button{min-height:44px}
 .btn.go{display:block;width:100%;font-size:18px;padding:12px;margin:4px 0 6px}
 .btn.on{outline:3px solid #fff}
 .lnk{background:none;border:0;color:var(--ink);font:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer;padding:8px 0;min-height:44px;text-align:left}
-.lvs{list-style:none;padding-left:0}.lvs .st{color:var(--gold);font-size:14px;white-space:nowrap}
+.lvs{list-style:none;padding-left:0}.uh{list-style:none;color:var(--mut);font-size:13px;margin:8px 0 2px -1.2em}.pin .ul{display:block;font-size:11px;font-weight:700;color:#7a5a2a;line-height:1.2}.pin.pu{pointer-events:none;border:0;font-weight:800;color:#1b1b2b;padding:3px 12px}.lvs .st{color:var(--gold);font-size:14px;white-space:nowrap}
 .deck{list-style:none;padding:0}
 .deck .dk{display:flex;align-items:center;justify-content:space-between;gap:8px;background:#0d1436;border-radius:12px;padding:6px 10px;margin:6px 0}
 .deck .dk small{display:block;color:var(--mut);font-size:12px}
@@ -990,8 +990,10 @@ function unitName(subj,isl){const id=isl.id,lv=(isl.levels||[])[0];
 function buildRegions(){
   return SUBJ_ORDER.map(subj=>{const T=THEME[subj],b=bookOf(subj);if(!b)return null;
     const islands=(b.structure&&b.structure.islands)||[];
-    const units=islands.map((isl,i)=>{const lvs=isl.levels||[];
-      return{n:esc(isl.name),un:esc(unitName(subj,isl)),u:'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
+    /* 國語：一座島＝一課，島名＝單元名；單元序號讀題本 islands[].unit，沒填就依島名出現順序推（SPEC §7 地圖命名規則） */
+    const unames=[...new Set(islands.map(x=>x.name))],uno=isl=>subj==='國語'?(Number(isl.unit)||unames.indexOf(isl.name)+1):0;
+    const units=islands.map((isl,i)=>{const lvs=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+      return{n:esc(isl.name),un:esc(unitName(subj,isl)),uno:no,ul,u:ul||'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
         lv:lvs.map(l=>esc(l.name)),pin:lvs.map(l=>esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
         keys:lvs.map(l=>shortKey(b.code,l.code)),exam:lvs.map(l=>l.exam||''),slots:lvs.map(l=>l.slots||[]),
         ex:lvs.length>0&&lvs.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false}});
@@ -1183,8 +1185,11 @@ const VR=R.filter(r=>!r.lock),SW=6.2832/VR.length;
    英語 U1～Review 1（英語尚未建置，建置時把 Review 1 之前的 Unit 數填進 en）。數字＝該科前幾個單元已考。內圈＝已考過、外圈＝下次評量範圍 */
 const BAND=14.3;
 VR.forEach((r,vi)=>{const n=r.units.length,a=Math.PI/2-vi*SW,ex=r.units.filter(u=>u.ex).length,split=ex>0&&ex<n,inner=split?ex:Math.max(1,Math.floor(n*.4)),outer=n-inner,W=Math.min(SW-.45,1.9);r.a3=a;r.sp3=split;
+  /* 國語分單元（範本 12 方案 B）：同一圈裡換單元時多空 G 格，同單元的島排在一起 */
+  const G=r.units.some(u=>u.uno)?.75:0,pos=[],tot=[0,0];
+  r.units.forEach((u,i)=>{const row=i<inner?0:1,pv=r.units[i-1];if(pv&&(i-1<inner?0:1)===row&&G&&pv.uno!==u.uno)tot[row]+=G;pos[i]=tot[row];tot[row]+=1});
   r.X3=Math.cos(a)*14.5;r.Z3=Math.sin(a)*14.5;
-  r.units.forEach((u,i)=>{const row=i<inner?0:1,m=row?outer:inner,j=row?i-inner:i,rad=row?17.6:11.3,t=a+(m===1?0:m===2?(j-.5)*W*.56:(j/(m-1)-.5)*W),sp=m===1?9:m===2?rad*W*.56:rad*W/(m-1);
+  r.units.forEach((u,i)=>{const row=i<inner?0:1,m=row?outer:inner,rad=row?17.6:11.3,f=m===2?.56:1,span=tot[row]-1,t=a+(m===1?0:(pos[i]/span-.5)*W*f),sp=m===1?9:rad*W*f/span;
     u.E3=split&&row===0;u.R3=Math.max(1.15,Math.min(2.6,sp*.43));u.X3=Math.cos(t)*rad;u.Z3=Math.sin(t)*rad;u.S3=r.ang+i*7.3;
     u.N3=u.lv.map((_,k)=>{const q=Math.atan2(-u.Z3,-u.X3)+.55+(u.lv.length>1?k/(u.lv.length-1)*4.3:0),d=u.R3*.58;return{q,x:u.X3+Math.cos(q)*d,z:u.Z3+Math.sin(q)*d,on:!!u.on[k]}})})});
 /* 可愛風零件（都畫在原點、底面 y=0；c＝該區配色） */
@@ -1335,17 +1340,22 @@ function cam3(v){if(!W3.ok)return;const r=R.find(x=>x.id===v.r);if(r&&r.lock)v={
   else if(v.k==='region')CAM.goal={az:near(Math.atan2(r.X3,r.Z3)),el:1.14,r:Math.max(38,50/(W3.asp||1.5)),tx:r.X3,tz:r.Z3};
   else{const u=r.units[v.u];CAM.goal={az:near(Math.atan2(u.X3,u.Z3)),el:.95,r:Math.max(9,u.R3*5.2/Math.min(1.4,W3.asp||1.5)),tx:u.X3,tz:u.Z3}}
   if(v.k!=='world')CAM.touched=true;PINS.forEach(p=>p.el.classList.toggle('cur',v.k==='level'&&p.k==='lv'&&p.r===v.r&&p.u===v.u&&p.l===v.l))}
-function buildPins(){const box=$('#pins');box.innerHTML='';PINS.length=0;
-  const add=(k,o,html,cls,fn)=>{const b=document.createElement('button');b.className='pin '+cls;b.innerHTML=html;b.onclick=fn;b.style.display='none';box.appendChild(b);PINS.push(Object.assign({k,el:b},o))};
+function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單元看板配色，島標籤外框同色 */const box=$('#pins');box.innerHTML='';PINS.length=0;
+  const add=(k,o,html,cls,fn)=>{const b=document.createElement('button');b.className='pin '+cls;b.innerHTML=html;b.onclick=fn;b.style.display='none';box.appendChild(b);PINS.push(Object.assign({k,el:b},o));return b};
   add('castle',{p:[0,(TOP+5.2)*1.3,0]},'🏯 皇城<small>我的自學情況</small>','pc',()=>go({k:'castle'}));
   VR.forEach(r=>{add('reg',{r:r.id,p:[r.X3*1.05,3.4,r.Z3*1.05]},`<i style="background:${r.c.t1}"></i><b>${r.name}</b>・${r.zone}<small>${r.lock?'待建':r.done+'／'+r.total+' 關'}</small>`,'pr'+(r.lock?' lk':''),()=>go({k:'region',r:r.id}));
+    /* 單元看板：國語每個單元一塊，立在該單元島群的外側 */
+    const grp={};r.units.forEach(u=>{if(u.uno)(grp[u.uno]=grp[u.uno]||[]).push(u)});
+    Object.values(grp).forEach(us=>{const x=us.reduce((s,u)=>s+u.X3,0)/us.length,z=us.reduce((s,u)=>s+u.Z3,0)/us.length,d=Math.hypot(x,z)||1,R=Math.max(...us.map(u=>u.R3))+1.4,k=(d<14?d-R:d+R)/d; /* 內圈往皇城側、外圈往外側，避開另一圈的標籤 */
+      add('unit',{r:r.id,p:[x*k,TOP+.4,z*k]},us[0].ul,'pu',()=>go({k:'region',r:r.id})).style.background=UC[(us[0].uno-1)%UC.length]});
     r.units.forEach((u,ui)=>{add('isl',{r:r.id,u:ui,p:[u.X3,TOP+2.3*u.R3/2.2+1+(r.units.length>6&&ui%2?1.5:0),u.Z3]},`${u.un}${r.sp3?(u.E3?'<em>已考</em>':'<em class="now">本次</em>'):''}<small>${r.lock?u.u:u.done+'／'+u.total}</small>`,'pi'+(r.lock?' lk':''),()=>r.lock?go({k:'region',r:r.id}):go({k:'island',r:r.id,u:ui}));
       if(u.N3[0]){const qc=u.N3[0].q-1,d=u.R3*.58,open=u.chest;add('chest',{r:r.id,u:ui,p:[u.X3+Math.cos(qc)*d,TOP+.6,u.Z3+Math.sin(qc)*d]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
       u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+.7,nd.z]},`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
+  PINS.forEach(p=>{if(p.k!=='isl')return;const u=VR.find(r=>r.id===p.r).units[p.u];if(u.uno){p.el.style.borderColor=UC[(u.uno-1)%UC.length];p.el.style.borderWidth='3px'}});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
 function updatePins(){const v=view;for(const p of PINS){let show=false;
     if(v.k==='world'||v.k==='castle')show=p.k==='reg'||p.k==='castle';
-    else if(v.k==='region')show=p.k==='isl'&&p.r===v.r;
+    else if(v.k==='region')show=(p.k==='isl'||p.k==='unit')&&p.r===v.r;
     else show=(p.k==='lv'||p.k==='chest')&&p.r===v.r&&p.u===v.u;
     const s=show?W3.proj(p.p[0],p.p[1],p.p[2]):null;
     if(s&&s[0]>-40&&s[0]<W3.w+40&&s[1]>0&&s[1]<W3.h+10){p.el.style.display='';p.el.style.transform=`translate(${s[0].toFixed(1)}px,${s[1].toFixed(1)}px) translate(-50%,-100%)`}else p.el.style.display='none'}}
@@ -1606,7 +1616,7 @@ function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:dec
 function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.innerHTML=`<h2>${r.name}區・${r.zone}</h2><p class="mut">${r.bookTitle}｜${r.units.length} 座小島・${r.done}／${r.total} 關</p>`
   +(bs.length>1?`<h3>換一本題本</h3><div class="seg">${bs.map(b=>`<button class="btn${b.code===r.book?' on':''}" data-bk="${esc(b.code)}">${esc(b.title)}</button>`).join('')}</div>`:'')
-  +`<h3>小島</h3><ul>${r.units.map((u,i)=>`<li><button class="lnk" data-u="${i}">${u.un}</button>　${u.done}／${u.total} 關${u.chest?'・🎁':''}</li>`).join('')}</ul>`;
+  +`<h3>小島</h3><ul>${r.units.map((u,i)=>`${u.ul&&(!i||r.units[i-1].uno!==u.uno)?`<li class="uh">${u.ul}</li>`:''}<li><button class="lnk" data-u="${i}">${u.un}</button>　${u.done}／${u.total} 關${u.chest?'・🎁':''}</li>`).join('')}</ul>`;
   panel.querySelectorAll('[data-u]').forEach(b=>b.onclick=()=>go({k:'island',r:r.id,u:+b.dataset.u}));
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];
