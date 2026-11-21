@@ -1767,7 +1767,7 @@ function seatTxt(s){s=Number(s);return s>900?`體驗 ${s-900} 號`:`${s} 號`}
 function loginDlg(){if($('#dlg'))return;const d=document.createElement('div');d.id='dlg';d.className='dlg';
   const seat=APP.me&&APP.me.seat?(APP.me.seat>900?APP.me.seat-900:APP.me.seat):'';
   d.innerHTML=`<form class="box" role="dialog" aria-label="登入自學星圖"><h2>登入自學星圖</h2>
-   <p class="mut">用座號和老師給的查詢碼登入。登入後進度會記錄、換一台載具也能接著玩。<br>全班試玩：座號填自己的，查詢碼改填老師給的<b>體驗碼</b>（另外記錄，不影響自己的帳號）。</p>
+   <p class="mut">用<b>自己的座號</b>和<b>查詢碼</b>（和看學習報告的同一組）登入。登入後進度會記錄、換一台載具也能接著玩。</p>
    <label>座號<input name="seat" type="number" inputmode="numeric" min="1" required value="${seat}"></label>
    <label>查詢碼<input name="code" type="password" autocomplete="off" required></label>
    <p class="err" id="lerr" role="alert"></p>
