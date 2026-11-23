@@ -345,12 +345,17 @@ function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單�
       u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+.7,nd.z]},`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
   PINS.forEach(p=>{if(p.k!=='isl')return;const u=VR.find(r=>r.id===p.r).units[p.u];if(u.uno){p.el.style.borderColor=UC[(u.uno-1)%UC.length];p.el.style.borderWidth='3px'}});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
-function updatePins(){const v=view;for(const p of PINS){let show=false;
+function updatePins(){const v=view,vis=[];for(const p of PINS){let show=false;
     if(v.k==='world'||v.k==='castle')show=p.k==='reg'||p.k==='castle';
     else if(v.k==='region')show=(p.k==='isl'||p.k==='unit')&&p.r===v.r;
     else show=(p.k==='lv'||p.k==='chest')&&p.r===v.r&&p.u===v.u;
     const s=show?W3.proj(p.p[0],p.p[1],p.p[2]):null;
-    if(s&&s[0]>-40&&s[0]<W3.w+40&&s[1]>0&&s[1]<W3.h+10){p.el.style.display='';p.el.style.transform=`translate(${s[0].toFixed(1)}px,${s[1].toFixed(1)}px) translate(-50%,-100%)`}else p.el.style.display='none'}}
+    if(s&&s[0]>-40&&s[0]<W3.w+40&&s[1]>0&&s[1]<W3.h+10){if(p.el.style.display){p.el.style.display='';p.wd=0}if(!p.wd){p.wd=p.el.offsetWidth;p.ht=p.el.offsetHeight}vis.push({p,x:s[0],y:s[1]})}else p.el.style.display='none'}
+  /* 防重疊：由畫面下方（離鏡頭近）往上逐一擺放，撞到已擺好的名牌就往上錯開 */
+  vis.sort((a,b)=>b.y-a.y);const put=[];
+  for(const o of vis){const w=o.p.wd,h=o.p.ht,l=o.x-w/2;let t=o.y-h;
+    for(let n=0;n<12;n++){const hit=put.find(q=>l<q.l+q.w+3&&l+w+3>q.l&&t<q.t+q.h+2&&t+h+2>q.t);if(!hit)break;t=hit.t-h-2}
+    put.push({l,t,w,h});o.p.el.style.transform=`translate(${l.toFixed(1)}px,${t.toFixed(1)}px)`}}
 
 return{initWorld,cam3,W3,CAM}})();
 $('#stage').hidden=false;let ok=false;try{ok=M3.initWorld()}catch(e){console.error(e)}
