@@ -57,7 +57,7 @@ function tasksHTML(noStreak){if(!APP.rec())return'';const d=APP.me.today.done,n=
    +(APP.me.streak&&!noStreak?`<p>🔥 連續自學 <b>${APP.me.streak}</b> 天<small class="mut">（週末、放假沒玩不會中斷）</small></p>`:'')
    +(n&&!d.includes('n')&&d.length<3?`<button class="btn" id="toNext">▶ 前進：${n.t}</button>`:'')}
 function wireLogin(){panel.querySelectorAll('[data-login]').forEach(b=>b.onclick=loginDlg);const n=$('#toNext');if(n)n.onclick=()=>{const x=findNext();if(x)go({k:'level',r:x.r,u:x.u,l:x.l})}}
-function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝<b>課後練習</b>，一關 7 題</li></ul><h3>各科進度</h3>`
+function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝<b>島嶼點燈</b>，一關 7 題</li></ul><h3>各科進度</h3>`
   +R.map(r=>`<div class="mut">${r.name}・${r.bookTitle}　${r.done}／${r.total} 關</div>${bar(r.total?r.done/r.total*100:0,r.c.t1)}`).join('')+'<p class="mut">點地圖上的標籤進入。老師把新的單元做好，這裡就會自動多出小島。</p>';wireLogin()}
 function totalsAll(){let s=0,c=0;R.forEach(r=>{const t=totals(APP.m(r.book).lv);s+=t.stars;c+=t.completed});return{stars:s,completed:c}}
 /* ---------- 皇城側欄（P3 §2.1，範本 13 第①頁）：資料全部來自存檔與代理既有回覆，不新增代理欄位 ---------- */
@@ -81,7 +81,7 @@ function weekHTML(today){if(!APP.rec())return'';const w=Array.isArray(APP.me.day
 function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
   const sum=f=>decks.reduce((a,x)=>a+f(x.d),0),nT=sum(d=>d.todo.length),nDue=sum(d=>d.due.length),nD=nDue+sum(d=>d.wait.length),nO=sum(d=>d.ok);
   const lvDone=R.reduce((a,r)=>a+r.done,0),lvAll=R.reduce((a,r)=>a+r.total,0),isl=R.flatMap(r=>r.units),chests=isl.filter(u=>u.chest).length;
-  const rings=ringBox(lvAll?lvDone/lvAll:0,'var(--ok)',lvAll?Math.round(lvDone/lvAll*100)+'%':'0%','課後練習',`${lvDone}／${lvAll} 關`)
+  const rings=ringBox(lvAll?lvDone/lvAll:0,'var(--ok)',lvAll?Math.round(lvDone/lvAll*100)+'%':'0%','島嶼點燈',`${lvDone}／${lvAll} 關`)
    +ringBox(0,'var(--gold)','🔒','百鍊塔','即將開放')
    +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心寶箱',`已開 ${chests}／${isl.length} 個`);
   const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
@@ -111,7 +111,7 @@ function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];
   panel.innerHTML=`<h2>${u.un}</h2><p class="mut">${r.name}・${u.u}｜${u.total} 關${u.ex?'・期中評量考過（複習用）':''}</p>${bar(u.total?u.done/u.total*100:0,r.c.t1)}
-   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>i===u.core?'':`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
+   <h3>🏮 島嶼點燈</h3><ol class="lvs">${u.lv.map((t,i)=>i===u.core?'':`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
    ${u.core>=0?`<h3>島心與寶箱</h3><p><button class="lnk" data-l="${u.core}">${coreTitle(u)}</button> <span class="st">${u.open?(u.best[u.core]?'★'.repeat(u.best[u.core])+'☆'.repeat(3-u.best[u.core]):'未挑戰'):'🔒 還差 '+u.left+' 關'}</span></p>`:''}
    <p class="mut">${u.chest?'🎁 寶箱打開了！':'🎁 島心試煉七盞全金，寶箱就會打開。'}</p>`;
   panel.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>go({k:'level',r:r.id,u:ui,l:+b.dataset.l}))}
