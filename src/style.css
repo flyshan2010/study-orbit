@@ -408,3 +408,14 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 .g8 .quiz.tw .gopt .k{position:absolute;left:12px;top:50%;translate:0 -50%;font-size:14px}
 .g8 .twnote{text-align:center;margin:8px 0 0}
 .g8 .twres{font-size:clamp(17px,2.6vw,22px);margin:0}
+
+/* P3 §13.4 百鍊塔三階分頁；國社題：選項直排四列、配合題拆出的題原題幹小字、左欄項目放大 */
+.twtabs{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
+.twtab{flex:1 1 auto;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#0d1436;color:var(--mut);font:inherit;font-weight:700;padding:6px 10px;cursor:pointer}
+.twtab.on{color:var(--ink);border-color:var(--gold);background:#2a2560}
+.fl.prep{opacity:.45;border-style:dashed}
+.g8 .quiz.tw.word .twq{font-size:clamp(20px,3.6vw,32px);line-height:1.5;text-align:left;max-width:820px;width:100%;margin-left:auto;margin-right:auto;font-variant-numeric:normal}
+.g8 .quiz.tw.word .twsub{font-size:clamp(15px,2vw,18px);color:var(--mut);max-width:820px;width:100%;margin:clamp(4px,2vh,16px) auto 0}
+.g8 .quiz.tw.word .twbig{font-size:clamp(26px,5vw,44px);text-align:center;font-weight:900;margin-top:4px}
+.g8 .quiz.tw.word .opts{grid-template-columns:1fr;max-width:820px}
+.g8 .quiz.tw.word .gopt{justify-content:flex-start;text-align:left;font-size:clamp(18px,2.6vw,24px);min-height:56px;padding:10px 14px 10px 44px;font-variant-numeric:normal}

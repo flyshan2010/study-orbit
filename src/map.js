@@ -380,7 +380,7 @@ function cam3(v){if(!W3.ok)return;const r=R.find(x=>x.id===v.r);if(r&&r.lock)v={
 function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單元看板配色，島標籤外框同色 */const box=$('#pins');box.innerHTML='';PINS.length=0;
   const add=(k,o,html,cls,fn)=>{const b=document.createElement('button');b.className='pin '+cls;b.innerHTML=html;b.onclick=fn;b.style.display='none';box.appendChild(b);PINS.push(Object.assign({k,el:b},o));return b};
   add('castle',{p:[0,(TOP+5.2)*1.3,0]},'🏯 皇城<small>我的自學情況</small>','pc',()=>go({k:'castle'}));
-  if(TWR.on())add('tower',{p:[TWX*1.25,(TOP+4.4)*1.3,TWZ*1.25]},`🗼 百鍊之塔<small>${TWR.top()?'第 '+TWR.top()+' 層':'數學算力'}</small>`,'pc pt',()=>go({k:'tower'}));
+  if(TWR.on())add('tower',{p:[TWX*1.25,(TOP+4.4)*1.3,TWZ*1.25]},`🗼 百鍊之塔<small>${TWR.sum().p?'已過 '+TWR.sum().p+' 層':'三階挑戰'}</small>`,'pc pt',()=>go({k:'tower'}));
   VR.forEach(r=>{add('reg',{r:r.id,p:[r.X3*1.05,3.4,r.Z3*1.05]},`<i style="background:${r.c.t1}"></i><b>${r.name}</b>・${r.zone}<small>${r.lock?'待建':r.done+'／'+r.total+' 關'}</small>`,'pr'+(r.lock?' lk':''),()=>go({k:'region',r:r.id}));
     /* 單元看板：國語每個單元一塊，立在該單元島群的外側 */
     const grp={};r.units.forEach(u=>{if(u.uno)(grp[u.uno]=grp[u.uno]||[]).push(u)});

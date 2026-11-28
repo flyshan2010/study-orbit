@@ -109,3 +109,38 @@ test("P3 §3.1 虛擬島心 7 格：每關至少 1 格、同回合不重題、�
   }
   assert.equal(nCore, 11, "數學 7 島＋社會 4 島");
 });
+
+// P3 §13.4：每格多題（塔題也是闖關題）
+function many(n) {
+  const qs = [];
+  for (let s = 1; s <= 7; s++) for (let k = 0; k < (s === 2 ? n : 2); k++) qs.push({ id: `Q${s}-${k}`, level: "x-1-1", slot: s, span: 1, mother: k ? `Q${s}-0` : "" });
+  // 配合格：第 4 格放 3 題配合（占 4 格的話另排一關測）
+  return qs;
+}
+test("§13.4 一格 5 題：1,000 次每題都抽得到、再挑戰不重複、也每題都當過再挑戰", () => {
+  const qs = many(5), seen = new Set(), alts = new Set();
+  for (let k = 0; k < 1000; k++) {
+    const it = planRound(qs, "x-1-1").find((x) => x.slots[0] === 2);
+    assert.ok(it.alt && it.alt.id !== it.q.id);
+    seen.add(it.q.id); alts.add(it.alt.id);
+  }
+  assert.equal(seen.size, 5); assert.equal(alts.size, 5);
+});
+test("§13.4 只有 2 題的格：亂數用量與結果和以前相同（固定亂數逐格對照）", () => {
+  const qs = many(2), seq = [0.1, 0.9, 0.4, 0.6, 0.2, 0.8, 0.7];
+  let i = 0; const r = () => seq[i++ % seq.length];
+  const got = planRound(qs, "x-1-1", r).map((x) => [x.q.id, x.alt.id]);
+  const want = seq.map((v, s) => { const j = Math.floor(v * 2); return [`Q${s + 1}-${j}`, `Q${s + 1}-${1 - j}`]; });
+  assert.deepEqual(got, want);
+  assert.equal(i, 7, "一格只用一次亂數");
+});
+test("§13.4 配合格多題：整格一起換（再挑戰是同格另一題配合）", () => {
+  const qs = [0, 1, 2].map((k) => ({ id: `M${k}`, type: "配合", level: "y-1-1", slot: 1, span: 4, mother: k ? "M0" : "" }))
+    .concat([5, 6, 7].flatMap((s) => [0, 1].map((k) => ({ id: `C${s}${k}`, level: "y-1-1", slot: s, span: 1, mother: k ? `C${s}0` : "" }))));
+  const ids = new Set();
+  for (let k = 0; k < 300; k++) {
+    const it = planRound(qs, "y-1-1")[0];
+    assert.deepEqual(it.slots, [1, 2, 3, 4]); assert.ok(it.alt.type === "配合" && it.alt.id !== it.q.id); ids.add(it.q.id);
+  }
+  assert.equal(ids.size, 3);
+});

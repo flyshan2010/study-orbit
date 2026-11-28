@@ -1,9 +1,19 @@
 // 自學星圖前台：出題與判題（純函式）。node 測試直接 import；build.py 去掉 export 併進頁面。
-// 規格：P1 SPEC §5（一格最多兩次、再挑戰換同一格的另一題）、§9 第 4 項（配合題一對一盞燈）、
+// 規格：P1 SPEC §5（一格最多兩次、再挑戰換同一格的另一題；P3 §13.4 起每格可多題：抽一題、再挑戰從同格其餘題隨機抽）、§9 第 4 項（配合題一對一盞燈）、
 //       PLAN §一之一（閱讀題組：同一組小題用同一篇；兩組擇一）。燈色與星等一律用 rules.mjs。
 
 /**
- * 排一回合：每一格（配合題＝起始格、占 span 格）從兩題擇一，另一題留給再挑戰。
+ * 再挑戰用的題（P3 §13.4）：同格其餘題目隨機抽一題；只剩一題就是它（2 題的格不多耗亂數，結果和以前相同）。
+ * 閱讀題組：選的是題組小題時，再挑戰固定用另一組的同格小題（題組規則不動）。
+ */
+function altOf(c, i, rand) {
+  const rest = c.filter((_, k) => k !== i);
+  if (rest.length <= 1 || c[i].group) return rest[0] ?? null;
+  return rest[Math.floor(rand() * rest.length)];
+}
+
+/**
+ * 排一回合：每一格（配合題＝起始格、占 span 格）從該格全部題目隨機擇一，再挑戰從其餘題目隨機抽（altOf）。
  * 閱讀題組：同一回合整組一起選（選了 G1 的第一小題，後面幾格也都用 G1）。
  * @returns {{slots:number[], q:object, alt:object|null}[]} 依格子順序
  */
@@ -19,7 +29,7 @@ export function planRound(questions, level, rand = Math.random) {
     if (i < 0) i = c.length > 1 ? Math.floor(rand() * c.length) : 0;
     c.forEach((q, k) => { if (q.group) (k === i ? chosen : rejected).add(q.group); });
     const q = c[i], span = Math.max(1, Number(q.span) || 1);
-    return { slots: Array.from({ length: span }, (_, k) => s + k), q, alt: c.find((_, k) => k !== i) ?? null };
+    return { slots: Array.from({ length: span }, (_, k) => s + k), q, alt: altOf(c, i, rand) };
   });
 }
 
@@ -54,7 +64,7 @@ export function planCore(questions, core, slotsOf, rand = Math.random) {
   fill((c) => c.kind === "應用"); fill(() => true);
   return picks.map((c, i) => {
     const qs = [...c.qs].sort((a, b) => a.id.localeCompare(b.id)), j = qs.length > 1 ? Math.floor(rand() * qs.length) : 0;
-    return { slots: [i + 1], q: qs[j], alt: qs.find((_, k) => k !== j) ?? null, kind: c.kind };
+    return { slots: [i + 1], q: qs[j], alt: altOf(qs, j, rand), kind: c.kind };
   });
 }
 
