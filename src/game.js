@@ -163,9 +163,9 @@ function cardConfirm(){const q=st.q;if(lock)return;let ok,opt;
   $('#say').textContent=ok?(now==='o'?'確認通過！這張卡結案了。':'答對了！這張卡蓋上「已克服」章，7 天後再確認一次。'):'這次沒答對，卡片回到「待複習」。看完詳解，改天再挑戰。';
   const go=$('#gobtn');go.dataset.act='quit';go.textContent='回到皇城 →';go.disabled=false;go.focus()}
 
-S.onclick=e=>{const o=e.target.closest('.gopt');if(o)return pick(+o.dataset.i);const l=e.target.closest('.ml');if(l)return tapLeft(l.dataset.l);const r=e.target.closest('.mr');if(r)return tapRight(r.dataset.r);
+S.onclick=e=>{if(S.querySelector('[data-tw]'))return; /* 百鍊之塔畫面由 tower.js 處理 */const o=e.target.closest('.gopt');if(o)return pick(+o.dataset.i);const l=e.target.closest('.ml');if(l)return tapLeft(l.dataset.l);const r=e.target.closest('.mr');if(r)return tapRight(r.dataset.r);
   const a=e.target.closest('[data-act]');if(!a)return;
   ({start,quit:close,hint,confirm,next(){st.n++;nextQ()},cards(){giveCards(st.wrong)},retry,flip,snd(){setSnd(!snd)}})[a.dataset.act]?.()};
-document.addEventListener('keydown',e=>{if($('#g8play').hidden||S.querySelector('.ov'))return;if(/^[1-4]$/.test(e.key)&&S.querySelector('.gopt'))pick(+e.key-1);else if(e.key==='Enter'&&$('#gobtn')&&!$('#gobtn').disabled){e.preventDefault();$('#gobtn').click()}});
+document.addEventListener('keydown',e=>{if($('#g8play').hidden||S.querySelector('.ov')||S.querySelector('[data-tw]'))return;if(/^[1-4]$/.test(e.key)&&S.querySelector('.gopt'))pick(+e.key-1);else if(e.key==='Enter'&&$('#gobtn')&&!$('#gobtn').disabled){e.preventDefault();$('#gobtn').click()}});
 
-return{open,openCard,close,setSnd,unlock,get snd(){return snd}}})();
+return{open,openCard,close,setSnd,unlock,sfx,confetti,get snd(){return snd}}})();

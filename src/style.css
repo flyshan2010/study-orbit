@@ -390,3 +390,21 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 .dot.dia{border-radius:2px;transform:rotate(45deg) scale(.92);background:#b9a6ff40;border-color:#b9a6ff}.dot.dia.lk{background:#ffffff14;border-color:#ffffff55;border-style:dashed}
 .dot.dia.s1{background:#c98b4a;border-color:#b9a6ff}.dot.dia.s2{background:#cfd6ea;border-color:#b9a6ff}.dot.dia.s3{background:var(--gold);border-color:#b9a6ff}
 .pin.pl.core{background:#e7defff2;border-color:#8f7be0;font-weight:800}.pin.pl.core.lk{background:#e3e6f2f2;border-color:#9aa3c4}.pin.pl.core.on{background:#ffe9a8f2}
+
+/* ---------- 百鍊之塔（P3 §5） ---------- */
+.ringbtn{background:none;border:0;color:inherit;font:inherit;padding:0;cursor:pointer;border-radius:12px;min-height:44px}
+.ringbtn:hover,.ringbtn:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.floors{list-style:none;padding:0;margin:8px 0;display:flex;flex-direction:column;gap:5px}
+.fl{width:100%;min-height:44px;display:grid;grid-template-columns:2.2em 1fr auto;gap:8px;align-items:center;text-align:left;background:#0d1436;border:1px solid var(--line);border-radius:10px;color:var(--mut);font:inherit;padding:6px 10px}
+.fl .no{font-weight:900;font-size:18px;text-align:center}.fl .st{font-size:13px;white-space:nowrap}
+.fl.done{color:var(--ink);border-color:#c9a64a}.fl.done .st{color:var(--gold)}
+.fl.open{color:var(--ink);border-color:var(--gold);background:#2a2560;cursor:pointer;font-weight:700}
+.fl.open:hover,.fl.open:focus-visible{background:#3a3380}.fl:disabled{opacity:.55;cursor:default}
+.pin.pt{border-color:#b9a6ff}
+.g8 .twclock{margin-left:auto;font-weight:900;font-size:20px;background:#0b1030b8;border-radius:999px;padding:6px 14px;font-variant-numeric:tabular-nums}
+.g8 .quiz.tw .twq{text-align:center;font-size:clamp(30px,6vw,56px);margin:clamp(6px,4vh,40px) 0 clamp(6px,3vh,28px);font-variant-numeric:tabular-nums}
+.g8 .quiz.tw .opts{display:grid;grid-template-columns:1fr 1fr;gap:clamp(10px,2vw,18px);max-width:760px;width:100%;margin:0 auto}
+.g8 .quiz.tw .gopt{justify-content:center;font-size:clamp(22px,4vw,36px);min-height:clamp(64px,12vh,104px);font-variant-numeric:tabular-nums;position:relative}
+.g8 .quiz.tw .gopt .k{position:absolute;left:12px;top:50%;translate:0 -50%;font-size:14px}
+.g8 .twnote{text-align:center;margin:8px 0 0}
+.g8 .twres{font-size:clamp(17px,2.6vw,22px);margin:0}

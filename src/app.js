@@ -66,12 +66,13 @@ function ringSVG(p,c,mid){const r=40,L=2*Math.PI*r;return`<svg viewBox="0 0 100 
 const ringBox=(p,c,mid,t,sub)=>`<div class="ring">${ringSVG(p,c,mid)}<b>${t}</b><small>${sub}</small></div>`;
 /* 島的短名：國語「第一課」、其他科「三單元」 */
 const isleShort=(r,u)=>{const h=u.un.split(/[ 、]/)[0];return r.subj==='國語'?h:h+'單元'};
-/* 下一步建議：依存檔照固定順序挑前 2 條成立的（句子寫死，P3 §2.1 第 6 項；第②步起加島心、第④步起加百鍊塔） */
+/* 下一步建議：依存檔照固定順序挑前 2 條成立的（句子寫死，P3 §2.1 第 6 項；第②步加島心、第④步加百鍊塔） */
 function castleTips(due){const t=[];
   if(due)t.push(`🃏 有 ${due} 張秘笈卡到期了，先複習最划算。`);
   for(const r of R){const u=r.units.find(u=>u.left>0&&u.left<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.left} 關沒亮，過完就能挑戰島心試煉。`);break}}
   for(const r of R){const u=r.units.find(u=>u.open&&!u.chest&&u.core>=0);if(u){const b=u.best[u.core]||0;
     t.push(b===3?`💠 ${r.name}科「${u.un}」的島心試煉還差 1 盞金燈就開寶箱。`:`💠 ${r.name}科「${u.un}」的島心試煉七盞全金，就能打開寶箱。`);break}}
+  if(TWR.on()){const w=TWR.next();t.push(w.top>=w.n?'🏆 百鍊之塔登頂了！挑一層打破自己的最佳紀錄，就是金階。':`🗼 百鍊之塔第 ${w.f} 層（${TOWER_FLOORS.ma[w.f-1]}）等你挑戰，10 題答對 9 題就過層。`)}
   outer:for(const r of R)for(const u of r.units)for(let i=0;i<u.best.length;i++)if(u.best[i]===1||u.best[i]===2){t.push(`⭐ ${r.name}科「${u.lv[i]}」再玩一次有機會拿 3 星。`);break outer}
   if(!t.length)t.push('✨ 今天挑一座新的島探險吧！');return t.slice(0,2)}
 /* 本週七格：代理回 days 才畫（第②步部署後才有 weekDays）；沒有就只顯示連續天數，不用本機資料假造 */
@@ -82,7 +83,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
   const sum=f=>decks.reduce((a,x)=>a+f(x.d),0),nT=sum(d=>d.todo.length),nDue=sum(d=>d.due.length),nD=nDue+sum(d=>d.wait.length),nO=sum(d=>d.ok);
   const lvDone=R.reduce((a,r)=>a+r.done,0),lvAll=R.reduce((a,r)=>a+r.total,0),isl=R.flatMap(r=>r.units),chests=isl.filter(u=>u.chest).length;
   const rings=ringBox(lvAll?lvDone/lvAll:0,'var(--ok)',lvAll?Math.round(lvDone/lvAll*100)+'%':'0%','島嶼點燈',`${lvDone}／${lvAll} 關`)
-   +ringBox(0,'var(--gold)','🔒','百鍊之塔','即將開放')
+   +(TWR.on()?(()=>{const t=TWR.next();return`<button class="ringbtn" id="toTower" aria-label="百鍊之塔：最高過到第 ${t.top} 層">${ringBox(t.top/t.n,'var(--gold)',t.top+'／'+t.n,'百鍊之塔',t.top?'數學算力・第 '+t.top+' 層':'還沒挑戰')}</button>`})():ringBox(0,'var(--gold)','🔒','百鍊之塔','暫時關閉'))
    +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心試煉',`寶箱已開 ${chests}／${isl.length} 個`);
   const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
     `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map((v,i)=>`<i class="dot${i===u.core?' dia'+(u.open?'':' lk'):''}${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
@@ -99,7 +100,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
    ${list?`<details class="deckbox"><summary class="btn">🃏 去複習（${nT+nDue} 張）</summary><ul class="deck">${list}</ul></details>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
    <h3>💡 下一步建議</h3><ul class="tips">${castleTips(nDue).map(x=>`<li>${x}</li>`).join('')}</ul>
    <details class="more"><summary>📖 故事卡圖鑑・🏆 排行榜</summary>${stories}<button class="btn" id="toRank">🏆 看排行榜</button></details>`;
-  $('#toRank').onclick=()=>tab('t4');wireLogin();
+  $('#toRank').onclick=()=>tab('t4');wireLogin();const tt=$('#toTower');if(tt)tt.onclick=()=>go({k:'tower'});
   panel.querySelectorAll('[data-isle]').forEach(b=>b.onclick=()=>{const[r,u]=b.dataset.isle.split('|');go({k:'island',r,u:+u})});
   panel.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const[book,k,due]=b.dataset.card.split('|'),full=book+'-'+k,q=cardQuestion(DATA.books[book].questions,full);
     if(!q){b.disabled=true;b.textContent='沒有題目';return}G8.openCard({book,code:full,name:APP.card(book,k).name,q,due:due==='1'})})}

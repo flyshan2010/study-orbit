@@ -107,6 +107,7 @@ function setCrumb(a){crumb.innerHTML=a.map((x,i)=>`<button data-c="${i}">${x[0]}
 function go(v){view=v;const r=R.find(x=>x.id===v.r);const c=[['🏰 全島',{k:'world'}]];
   if(v.k==='world'){drawWorld();pWorld()}
   else if(v.k==='castle'){drawWorld();pCastle();c.push(['皇城',v])}
+  else if(v.k==='tower'){drawWorld();pTower();c.push(['皇城',{k:'castle'}],['百鍊之塔',v])}
   else{c.push([r.name+'區',{k:'region',r:r.id}]);
     if(v.k==='region'){drawRegion(r);pRegion(r)}
     else{c.push([r.units[v.u].n,{k:'island',r:r.id,u:v.u}]);drawIsland(r,v.u);v.k==='island'?pIsland(r,v.u):pLevel(r,v.u,v.l)}}
@@ -278,8 +279,14 @@ function buildCastle(g){const navy=hex(0x3f5fa8),sand=hex(0xf2e2bc);
   [[2.5,.9,2.6],[1.9,.75,2],[1.3,.7,1.4]].forEach((t,k)=>{const y=TOP+.9+[0,1.25,2.35][k];g.box(0,y,0,t[0],t[1],t[0],WHITE,.08);g.cyl(0,y+t[1],0,t[2]*.86,t[0]*.36,.34,4,navy,.05,Math.PI/4);
     for(const s of[-1,1])g.quad([s*t[0]*.2-.12,y+.2,t[0]/2+.01],[s*t[0]*.2+.12,y+.2,t[0]/2+.01],[s*t[0]*.2+.12,y+.5,t[0]/2+.01],[s*t[0]*.2-.12,y+.5,t[0]/2+.01],GOLD,1)});
   g.cyl(0,TOP+4.25,0,.3,.26,.45,6,WHITE,.3);g.cyl(0,TOP+4.7,0,.5,0,.36,4,navy,0,Math.PI/4);g.ball(0,TOP+4.5,0,.2,GOLD,1,8,5);
-  g.at(trs(0,0,3.3,0,1.5),()=>PR.gate(g,{}));[[3,1.6],[-3,1.8],[2.2,-2.6],[-2.4,-2.4],[3.4,-.4],[-3.5,-.2]].forEach((p,i)=>put(g,'sakura',{},p[0],p[1],i,1+i%2*.25));
-  for(const a of[.5,1.1,2,2.6])lampPost(g,Math.cos(a)*3.5,Math.sin(a)*3.5+.2,1,0)}
+  g.at(trs(0,0,3.3,0,1.5),()=>PR.gate(g,{}));[[3,1.6],[-3,1.8],[2.2,-2.6],[-2.4,-2.4],[3.4,-.4]].forEach((p,i)=>put(g,'sakura',{},p[0],p[1],i,1+i%2*.25));
+  for(const a of[.5,1.1,2,2.6])lampPost(g,Math.cos(a)*3.5,Math.sin(a)*3.5+.2,1,0);
+  if(TWR.on())buildTower(g,TWX,TWZ)}
+/* 百鍊之塔（P3 §5）：皇城左側一座層層疊起的塔，金環＝一層；位置用皇城的區域座標 */
+const TWX=-3.5,TWZ=-.2;
+function buildTower(g,x,z){const vi=hex(0x7b6fd6),cr=hex(0xf6efe4);g.cyl(x,TOP,z,.78,.68,.4,8,STONE,0,Math.PI/8);
+  for(let k=0;k<5;k++){const y=TOP+.4+k*.62,r=.55-k*.06;g.cyl(x,y,z,r,r-.04,.54,8,k%2?vi:cr,.05,Math.PI/8);g.cyl(x,y+.54,z,r+.06,r+.02,.08,8,GOLD,.6,Math.PI/8)}
+  const yt=TOP+.4+5*.62;g.cyl(x,yt,z,.36,0,.7,8,vi,.1,Math.PI/8);g.ball(x,yt+.82,z,.12,GOLD,1,8,5)}
 function buildStatic(){const g=new Geo();g.at(trs(0,0,0,0,1.25,1.3,1.25),()=>buildCastle(g));
   VR.forEach((r,ri)=>{const c={t1:pastel(r.c.t1),t2:pastel(r.c.t2),m1:pastel(r.c.m1)},land=pastel(r.c.land),edge=pastel(r.c.edge),lk=r.lock?.62:1,sand=hex(0xe9dab0);
     const col=v=>r.lock?v.map(x=>x*.55+.2):v,cc={t1:col(c.t1),t2:col(c.t2),m1:col(c.m1)};
@@ -366,12 +373,14 @@ function near(a){let d=(a-CAM.az)%6.2832;if(d>Math.PI)d-=6.2832;if(d<-Math.PI)d+
 function cam3(v){if(!W3.ok)return;const r=R.find(x=>x.id===v.r);if(r&&r.lock)v={k:'world'};
   if(v.k==='world'){CAM.touched=false;CAM.goal={az:near(0),el:.95,r:fitR(),tx:0,tz:2}}
   else if(v.k==='castle')CAM.goal={az:near(0),el:.5,r:17,tx:0,tz:0};
+  else if(v.k==='tower')CAM.goal={az:near(-.5),el:.42,r:18,tx:TWX*1.25,tz:TWZ*1.25}; /* 從左前方看塔，塔頂名牌不被麵包屑擋住 */
   else if(v.k==='region')CAM.goal={az:near(Math.atan2(r.X3,r.Z3)),el:1.14,r:Math.max(38,50/(W3.asp||1.5)),tx:r.X3,tz:r.Z3};
   else{const u=r.units[v.u];CAM.goal={az:near(Math.atan2(u.X3,u.Z3)),el:.95,r:Math.max(9,u.R3*5.2/Math.min(1.4,W3.asp||1.5)),tx:u.X3,tz:u.Z3}}
   if(v.k!=='world')CAM.touched=true;PINS.forEach(p=>p.el.classList.toggle('cur',v.k==='level'&&p.k==='lv'&&p.r===v.r&&p.u===v.u&&p.l===v.l))}
 function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單元看板配色，島標籤外框同色 */const box=$('#pins');box.innerHTML='';PINS.length=0;
   const add=(k,o,html,cls,fn)=>{const b=document.createElement('button');b.className='pin '+cls;b.innerHTML=html;b.onclick=fn;b.style.display='none';box.appendChild(b);PINS.push(Object.assign({k,el:b},o));return b};
   add('castle',{p:[0,(TOP+5.2)*1.3,0]},'🏯 皇城<small>我的自學情況</small>','pc',()=>go({k:'castle'}));
+  if(TWR.on())add('tower',{p:[TWX*1.25,(TOP+4.4)*1.3,TWZ*1.25]},`🗼 百鍊之塔<small>${TWR.top()?'第 '+TWR.top()+' 層':'數學算力'}</small>`,'pc pt',()=>go({k:'tower'}));
   VR.forEach(r=>{add('reg',{r:r.id,p:[r.X3*1.05,3.4,r.Z3*1.05]},`<i style="background:${r.c.t1}"></i><b>${r.name}</b>・${r.zone}<small>${r.lock?'待建':r.done+'／'+r.total+' 關'}</small>`,'pr'+(r.lock?' lk':''),()=>go({k:'region',r:r.id}));
     /* 單元看板：國語每個單元一塊，立在該單元島群的外側 */
     const grp={};r.units.forEach(u=>{if(u.uno)(grp[u.uno]=grp[u.uno]||[]).push(u)});
@@ -383,7 +392,7 @@ function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單�
   PINS.forEach(p=>{if(p.k!=='isl')return;const u=VR.find(r=>r.id===p.r).units[p.u];if(u.uno){p.el.style.borderColor=UC[(u.uno-1)%UC.length];p.el.style.borderWidth='3px'}});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
 function updatePins(){const v=view,vis=[];for(const p of PINS){let show=false;
-    if(v.k==='world'||v.k==='castle')show=p.k==='reg'||p.k==='castle';
+    if(v.k==='world'||v.k==='castle'||v.k==='tower')show=p.k==='reg'||p.k==='castle'||p.k==='tower';
     else if(v.k==='region')show=(p.k==='isl'||p.k==='unit')&&p.r===v.r;
     else show=(p.k==='lv'||p.k==='chest')&&p.r===v.r&&p.u===v.u;
     const s=show?W3.proj(p.p[0],p.p[1],p.p[2]):null;
