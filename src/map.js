@@ -373,7 +373,7 @@ function near(a){let d=(a-CAM.az)%6.2832;if(d>Math.PI)d-=6.2832;if(d<-Math.PI)d+
 function cam3(v){if(!W3.ok)return;const r=R.find(x=>x.id===v.r);if(r&&r.lock)v={k:'world'};
   if(v.k==='world'){CAM.touched=false;CAM.goal={az:near(0),el:.95,r:fitR(),tx:0,tz:2}}
   else if(v.k==='castle')CAM.goal={az:near(0),el:.5,r:17,tx:0,tz:0};
-  else if(v.k==='tower')CAM.goal={az:near(-.5),el:.42,r:18,tx:TWX*1.25,tz:TWZ*1.25}; /* 從左前方看塔，塔頂名牌不被麵包屑擋住 */
+  else if(v.k==='tower')CAM.goal={az:near(-.5),el:.42,r:23,tx:TWX*1.25,tz:TWZ*1.25}; /* 從左前方看塔，塔頂名牌不被麵包屑擋住 */
   else if(v.k==='region')CAM.goal={az:near(Math.atan2(r.X3,r.Z3)),el:1.14,r:Math.max(38,50/(W3.asp||1.5)),tx:r.X3,tz:r.Z3};
   else{const u=r.units[v.u];CAM.goal={az:near(Math.atan2(u.X3,u.Z3)),el:.95,r:Math.max(9,u.R3*5.2/Math.min(1.4,W3.asp||1.5)),tx:u.X3,tz:u.Z3}}
   if(v.k!=='world')CAM.touched=true;PINS.forEach(p=>p.el.classList.toggle('cur',v.k==='level'&&p.k==='lv'&&p.r===v.r&&p.u===v.u&&p.l===v.l))}
