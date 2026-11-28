@@ -1770,21 +1770,8 @@ function wireLogin(){panel.querySelectorAll('[data-login]').forEach(b=>b.onclick
 function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝<b>課後練習</b>，一關 7 題</li></ul><h3>各科進度</h3>`
   +R.map(r=>`<div class="mut">${r.name}・${r.bookTitle}　${r.done}／${r.total} 關</div>${bar(r.total?r.done/r.total*100:0,r.c.t1)}`).join('')+'<p class="mut">點地圖上的標籤進入。老師把新的單元做好，這裡就會自動多出小島。</p>';wireLogin()}
 function totalsAll(){let s=0,c=0;R.forEach(r=>{const t=totals(APP.m(r.book).lv);s+=t.stars;c+=t.completed});return{stars:s,completed:c}}
-function pCastleOld(){ /* 改版前的皇城側欄：P3 第②步驗收完才刪（SPEC P3 §9 退路） */const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
-  const todo=decks.reduce((a,x)=>a+x.d.todo.length+x.d.due.length,0),okN=decks.reduce((a,x)=>a+x.d.ok+x.d.wait.length,0);
-  const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
-  const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
-  const stories=R.map(r=>{const m=APP.m(r.book),bk=DATA.books[r.book];if(!bk)return'';const got=bk.stories.filter(s=>m.sc.includes(APP.short(r.book,s.level)));
-    return`<div class="mut">${r.name}　${got.length}／${bk.stories.length} 張</div>`+got.map(s=>`<details class="sty"><summary>📖 ${esc(s.title)}</summary>${esc(s.body)}</details>`).join('')}).join('');
-  panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.rec()?'':trialNote}${tasksHTML()}<div class="kpis"><div class="kpi"><b>${t.stars} ★</b>累計星數</div><div class="kpi"><b>${t.completed} 關</b>完成關數</div><div class="kpi"><b>${todo} 張</b>待複習的卡</div><div class="kpi"><b>${okN} 個</b>已克服的盲點</div></div>
-   <h3>🃏 複習卡冊</h3>${list?`<ul class="deck">${list}</ul>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
-   <h3>📖 故事卡圖鑑</h3>${stories}<button class="btn" id="toRank">🏆 看排行榜</button>`;
-  $('#toRank').onclick=()=>tab('t4');wireLogin();
-  panel.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const[book,k,due]=b.dataset.card.split('|'),full=book+'-'+k,q=cardQuestion(DATA.books[book].questions,full);
-    if(!q){b.disabled=true;b.textContent='沒有題目';return}G8.openCard({book,code:full,name:APP.card(book,k).name,q,due:due==='1'})})}
 /* ---------- 皇城側欄（P3 §2.1，範本 13 第①頁）：資料全部來自存檔與代理既有回覆，不新增代理欄位 ---------- */
-const CASTLE_V2=true; /* 退路：改 false＝回到改版前側欄 */
-function pCastle(){return CASTLE_V2?pCastleV2():pCastleOld()}
+function pCastle(){return pCastleV2()}
 function ringSVG(p,c,mid){const r=40,L=2*Math.PI*r;return`<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}" fill="none" stroke="#ffffff1a" stroke-width="11"/>${p>0?`<circle cx="50" cy="50" r="${r}" fill="none" stroke="${c}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(L*p).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 50 50)"/>`:''}<text x="50" y="57" text-anchor="middle" fill="#eef0ff" font-size="${mid.length>4?15:20}" font-weight="800">${mid}</text></svg>`}
 const ringBox=(p,c,mid,t,sub)=>`<div class="ring">${ringSVG(p,c,mid)}<b>${t}</b><small>${sub}</small></div>`;
 /* 島的短名：國語「第一課」、其他科「三單元」 */
