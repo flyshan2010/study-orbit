@@ -10,6 +10,6 @@ async function boot(again){const msg=$('#loading');
     if(again&&M3){location.reload();return} /* 換題本＝地圖要重排，重新載入最單純（試玩進度存在分頁裡，不會掉） */
     $('#lg').hidden=!R.some(r=>r.units.some(u=>u.ex));
     if(makeM3()){const g0=go;go=function(v){g0(v);M3.cam3(v)}}
-    BOOTED=true;go(view);API.start()}
+    seasonTag();BOOTED=true;go(view);API.start()}
   catch(e){console.error(e);msg.hidden=false;msg.innerHTML='題本讀不到，請檢查網路後<button class="btn" onclick="location.reload()">重新整理</button>'}}
 boot();

@@ -24,7 +24,7 @@ function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.af
 function modeChips(){return APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
 function intro(){const best=APP.best(LV);
   S.innerHTML=`<div class="intro"><button class="ghost" data-act="quit">← 回到地圖</button><div class="where">${LV.crumb}</div><h2>${LV.title}</h2>
-   <div class="owl">${OWL}</div><div class="say">島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
+   <div class="owl">${OWL}</div><div class="say">課後練習：島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
    <div class="chips"><span class="chip">${best?'最高紀錄 '+starStr(best):'第一次挑戰'}</span>${modeChips()}</div>
    <button class="big" data-act="start">${LV.resume?'繼續闖關！':'出發點燈！'}</button></div>`}
 

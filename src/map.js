@@ -43,10 +43,38 @@ sail:c=>`<path d="M-12-4h24l-4 5h-16z" fill="#8a5a3a"/><path d="M0-4v-22l11 18z"
 let R=[];
 const LVW=()=>1; /* 正式版一關就是一關（範本的「一課五關」已拆成五個關卡） */
 
+/* ---------- 四季（P3 §2.2）：依臺北今天自動切換，學生不必設定；預覽用 ?season=spring|summer|autumn|winter，?season=off＝不套用 ----------
+   五區主題色（THEME.c）不動，只換天空、海、光線色票，樹冠／草地綠色往季節色偏一點，冬天朝上的面積雪，再加飄落物（2D 備援只換色票）。
+   退路：SEASON_ON 改 false＝預設關（網址參數仍可預覽） */
+const SEASON_ON=true;
+const SEASONS={
+ off:{n:'',e:'',fx:'',sky:[[.13,.17,.4],[.02,.03,.11]],wat:[[.035,.075,.22],[.26,.34,.64]],tint:[1,1,1],leaf:[0,0,0],leafK:0,snow:0,svg:['#0d1436','#3b82c4','#16306e']},
+ spring:{n:'春',e:'🌸',fx:'petal',sky:[[.34,.24,.46],[.05,.06,.19]],wat:[[.05,.09,.24],[.36,.38,.66]],tint:[1.05,.99,1.03],leaf:[1,.7,.82],leafK:.28,snow:0,svg:['#1a1640','#6f7fd0','#2a2a70']},
+ summer:{n:'夏',e:'☀️',fx:'firefly',sky:[[.09,.25,.47],[.01,.04,.15]],wat:[[.02,.1,.26],[.2,.44,.7]],tint:[.98,1.03,1],leaf:[.22,.72,.34],leafK:.25,snow:0,svg:['#08183a','#2f8fd6','#0f2f6e']},
+ autumn:{n:'秋',e:'🍁',fx:'leaf',sky:[[.42,.22,.27],[.07,.04,.15]],wat:[[.05,.06,.19],[.38,.3,.5]],tint:[1.08,.98,.9],leaf:[.92,.46,.18],leafK:.7,snow:0,svg:['#1d1230','#8a5a7a','#2c2a5a']},
+ winter:{n:'冬',e:'❄️',fx:'snow',sky:[[.22,.28,.5],[.04,.05,.15]],wat:[[.04,.07,.19],[.4,.46,.68]],tint:[.95,.98,1.08],leaf:[.24,.42,.38],leafK:.3,snow:1,svg:['#0f1638','#6d7fb8','#1c2a5e']}};
+const SZK=(()=>{let k=null;try{k=new URLSearchParams(location.search).get('season')}catch(e){}
+  return SEASONS[k]?k:SEASON_ON?season(todayStr()):'off'})(),SZ=SEASONS[SZK];
+/* 地圖角落小標籤：季節＋今天節氣（預覽別的季節時只顯示季節，節氣照今天） */
+function seasonTag(){const t=$('#sz');if(!t)return;if(SZK==='off'){t.hidden=true;return}t.hidden=false;t.textContent=SZ.e+' '+SZ.n+'・'+solarTerm(todayStr())}
+/* 飄落物：一張 2D 畫布疊在 3D 地圖上，跟地圖共用同一個 requestAnimationFrame（不另開計時器）；減少動態或 2D 備援時不產生 */
+const FX={on:false,cv:null,c:null,p:[],w:0,h:0,
+  init(stage){if(matchMedia('(prefers-reduced-motion: reduce)').matches||!SZ.fx)return;const cv=document.createElement('canvas');cv.id='fx';cv.setAttribute('aria-hidden','true');stage.insertBefore(cv,$('#pins'));this.cv=cv;this.c=cv.getContext('2d');this.on=!!this.c},
+  size(w,h){if(!this.on)return;this.w=w;this.h=h;this.cv.width=w;this.cv.height=h;const n=innerWidth<901?30:60;while(this.p.length<n)this.p.push(this.spawn(true));this.p.length=n},
+  spawn(any){const r=Math.random,k=SZ.fx,up=k==='firefly';return{x:r()*this.w,y:any?r()*this.h:up?this.h+10:-10,v:(k==='snow'?22:k==='firefly'?-10:30)*(.6+r()*.8),
+    sw:r()*6.28,ss:.6+r()*1.2,a:r()*6.28,va:(r()-.5)*2.4,s:k==='snow'?1.6+r()*2.6:k==='firefly'?1.6+r()*1.4:3.5+r()*3,hue:r()}},
+  step(dt,t){if(!this.on||!this.w)return;const c=this.c,k=SZ.fx;c.clearRect(0,0,this.w,this.h);
+    for(let i=0;i<this.p.length;i++){const q=this.p[i];q.y+=q.v*dt;q.x+=Math.sin(t*q.ss+q.sw)*(k==='firefly'?14:18)*dt;q.a+=q.va*dt;
+      if(q.y>this.h+12||q.y<-14||q.x<-20||q.x>this.w+20){this.p[i]=this.spawn(false);continue}
+      if(k==='snow'){c.fillStyle='rgba(255,255,255,.85)';c.beginPath();c.arc(q.x,q.y,q.s,0,6.283);c.fill()}
+      else if(k==='firefly'){const f=.45+.55*Math.abs(Math.sin(t*1.8+q.sw));c.fillStyle=`rgba(255,246,160,${(.25*f).toFixed(2)})`;c.beginPath();c.arc(q.x,q.y,q.s*3.2,0,6.283);c.fill();c.fillStyle=`rgba(255,250,200,${f.toFixed(2)})`;c.beginPath();c.arc(q.x,q.y,q.s,0,6.283);c.fill()}
+      else{c.save();c.translate(q.x,q.y);c.rotate(q.a);c.fillStyle=k==='petal'?(q.hue<.5?'#ffc0d8':'#ffd9e6'):(q.hue<.5?'#e0662c':'#f2b33d');c.beginPath();
+        if(k==='petal')c.ellipse(0,0,q.s,q.s*.6,0,0,6.283);else{c.moveTo(-q.s,0);c.quadraticCurveTo(0,-q.s*.8,q.s,0);c.quadraticCurveTo(0,q.s*.8,-q.s,0)}c.fill();c.restore()}}}};
+
 /* ---------- 畫圖 ---------- */
 const svg=$('#svg'),panel=$('#panel'),crumb=$('#crumb');
 let view={k:'world'};
-const sea=`<defs><radialGradient id="g" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="#3b82c4"/><stop offset="1" stop-color="#16306e"/></radialGradient></defs><rect width="1000" height="660" fill="#0d1436"/>`;
+const sea=`<defs><radialGradient id="g" cx="50%" cy="50%" r="60%"><stop offset="0" stop-color="${SZ.svg[1]}"/><stop offset="1" stop-color="${SZ.svg[2]}"/></radialGradient></defs><rect width="1000" height="660" fill="${SZ.svg[0]}"/>`;
 function starfield(seed){const r=rng(seed);let s='';for(let i=0;i<70;i++)s+=`<circle cx="${(r()*1000).toFixed(0)}" cy="${(r()*660).toFixed(0)}" r="${(r()*1.3+.3).toFixed(1)}" fill="#fff" opacity="${(r()*.5+.15).toFixed(2)}"/>`;return s}
 function scatter(cx,cy,rx,ry,gl,c,n,seed,s=1,lm){const r=rng(seed),a=[];for(let i=0;i<n;i++){const t=r()*Math.PI*2,k=Math.sqrt(r())*.72;a.push([cx+Math.cos(t)*rx*k,cy+Math.sin(t)*ry*k-2,gl[Math.floor(r()*gl.length)]])}
   if(lm)a.push([cx,cy+ry*.1,lm,1.7]);a.sort((p,q)=>p[1]-q[1]);return a.map(p=>at(p[0],p[1],s*(p[3]||1),GL[p[2]](c))).join('')}
@@ -154,11 +182,11 @@ function buildWater(){const g=new Geo(),s=320;[[-s,-s],[s,-s],[s,s],[-s,-s],[s,s
 function buildStars(){const v=[],R=rng(42);for(let i=0;i<420;i++){const a=R()*6.2832,y=.04+R()*.96,h=Math.sqrt(1-y*y),r=380;v.push(Math.cos(a)*h*r,y*r,Math.sin(a)*h*r, 1.2+R()*2.4,0,.1+R(), .8+R()*.2,.85+R()*.15,1,.5+R()*.5)}
   v.push(-150,210,-290, 54,0,0, 1,.95,.8,.95);return{v,n:v.length/10}}
 const VS_LIT='attribute vec3 aP;attribute vec3 aN;attribute vec4 aC;uniform mat4 uVP,uM;varying vec3 vN,vW;varying vec4 vC;void main(){vec4 w=uM*vec4(aP,1.);vW=w.xyz;vN=(uM*vec4(aN,0.)).xyz;vC=aC;gl_Position=uVP*w;}';
-const FS_LIT='precision mediump float;varying vec3 vN,vW;varying vec4 vC;uniform vec3 uL,uCam,uFog,uLH;uniform float uLHi,uFogD;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float d=max(dot(n,uL),0.);vec3 hemi=mix(vec3(.2,.22,.4),vec3(.5,.56,.82),n.y*.5+.5);vec3 lit=vC.rgb*(hemi+vec3(1.,.93,.78)*d*.7);vec3 tl=uLH-vW;float dl=length(tl);lit+=vC.rgb*vec3(1.,.78,.42)*uLHi*max(dot(n,tl/dl),0.)/(1.+dl*dl*.02);vec3 col=mix(lit,vC.rgb*1.3,vC.a);float f=1.-exp(-pow(length(uCam-vW)*uFogD,2.));gl_FragColor=vec4(mix(col,uFog,f),1.);}';
+const FS_LIT='precision mediump float;varying vec3 vN,vW;varying vec4 vC;uniform vec3 uL,uCam,uFog,uLH,uTint,uLeaf;uniform float uLHi,uFogD,uLeafK,uSnow,uTop;void main(){vec3 n=normalize(vN);if(!gl_FrontFacing)n=-n;float d=max(dot(n,uL),0.);vec3 b=vC.rgb;float gd=b.g-max(b.r,b.b);b=mix(b,uLeaf*(.55+.6*dot(b,vec3(.3,.59,.11))),uLeafK*smoothstep(.02,.12,gd)*(1.-vC.a)*step(uTop-.05,vW.y));float up=smoothstep(.55,.85,n.y)*uSnow*(1.-vC.a);float hy=vW.y-uTop;up*=hy>.3?1.:(abs(hy)<.04?.5:0.);b=mix(b,vec3(.93,.96,1.),up);vec3 hemi=mix(vec3(.2,.22,.4),vec3(.5,.56,.82),n.y*.5+.5)*uTint;vec3 lit=b*(hemi+vec3(1.,.93,.78)*d*.7);vec3 tl=uLH-vW;float dl=length(tl);lit+=b*vec3(1.,.78,.42)*uLHi*max(dot(n,tl/dl),0.)/(1.+dl*dl*.02);vec3 col=mix(lit,vC.rgb*1.3,vC.a);float f=1.-exp(-pow(length(uCam-vW)*uFogD,2.));gl_FragColor=vec4(mix(col,uFog,f),1.);}';
 const VS_WAT='attribute vec3 aP;uniform mat4 uVP;varying vec3 vW;void main(){vW=aP;gl_Position=uVP*vec4(aP,1.);}';
-const FS_WAT='precision mediump float;varying vec3 vW;uniform vec3 uL,uCam,uFog,uLH;uniform float uT,uLHi,uFogD;void main(){vec2 p=vW.xz;float t=uT;vec3 n=normalize(vec3(.07*cos(p.x*.9+t*1.1)+.05*cos(p.x*.4-p.y*.7+t*.7),1.,.07*cos(p.y*1.1+t*.9)+.05*cos(p.x*.6+p.y*.5-t*.8)));vec3 v=normalize(uCam-vW);float fr=pow(1.-max(dot(n,v),0.),3.);vec3 col=mix(vec3(.035,.075,.22),vec3(.26,.34,.64),fr*.85+.08);vec3 hv=normalize(uL+v);col+=vec3(1.,.95,.8)*pow(max(dot(n,hv),0.),80.)*.6;float dl=length(p-uLH.xz);col+=vec3(1.,.72,.34)*uLHi*.28/(1.+dl*dl*.035);vec2 g=floor(p*1.3);float h=fract(sin(dot(g,vec2(12.9898,78.233)))*43758.5453);vec2 q=fract(p*1.3)-.5;float s=step(.965,h)*(.45+.55*sin(t*1.6+h*80.))*smoothstep(.2,0.,length(q));col+=s*vec3(.85,.92,1.);float f=1.-exp(-pow(length(uCam-vW)*uFogD,2.));gl_FragColor=vec4(mix(col,uFog,f),1.);}';
+const FS_WAT='precision mediump float;varying vec3 vW;uniform vec3 uL,uCam,uFog,uLH;uniform vec3 uW0,uW1;uniform float uT,uLHi,uFogD;void main(){vec2 p=vW.xz;float t=uT;vec3 n=normalize(vec3(.07*cos(p.x*.9+t*1.1)+.05*cos(p.x*.4-p.y*.7+t*.7),1.,.07*cos(p.y*1.1+t*.9)+.05*cos(p.x*.6+p.y*.5-t*.8)));vec3 v=normalize(uCam-vW);float fr=pow(1.-max(dot(n,v),0.),3.);vec3 col=mix(uW0,uW1,fr*.85+.08);vec3 hv=normalize(uL+v);col+=vec3(1.,.95,.8)*pow(max(dot(n,hv),0.),80.)*.6;float dl=length(p-uLH.xz);col+=vec3(1.,.72,.34)*uLHi*.28/(1.+dl*dl*.035);vec2 g=floor(p*1.3);float h=fract(sin(dot(g,vec2(12.9898,78.233)))*43758.5453);vec2 q=fract(p*1.3)-.5;float s=step(.965,h)*(.45+.55*sin(t*1.6+h*80.))*smoothstep(.2,0.,length(q));col+=s*vec3(.85,.92,1.);float f=1.-exp(-pow(length(uCam-vW)*uFogD,2.));gl_FragColor=vec4(mix(col,uFog,f),1.);}';
 const VS_SKY='attribute vec3 aP;varying float vY;void main(){vY=aP.y;gl_Position=vec4(aP,1.);}';
-const FS_SKY='precision mediump float;varying float vY;uniform float uH;void main(){float k=clamp((vY-uH)/.9,0.,1.);gl_FragColor=vec4(mix(vec3(.13,.17,.4),vec3(.02,.03,.11),k),1.);}';
+const FS_SKY='precision mediump float;varying float vY;uniform float uH;uniform vec3 uS0,uS1;void main(){float k=clamp((vY-uH)/.9,0.,1.);gl_FragColor=vec4(mix(uS0,uS1,k),1.);}';
 const VS_PT='attribute vec3 aP;attribute vec3 aN;attribute vec4 aC;uniform mat4 uVP;uniform float uPx,uT;varying vec4 vC;void main(){gl_Position=uVP*vec4(aP,1.);float tw=aN.z>0.?.7+.3*sin(uT*1.7+aN.z*40.):1.;vC=vec4(aC.rgb,aC.a*tw);gl_PointSize=aN.x*uPx*(aN.y>.5?30./max(gl_Position.w,1.):1.);}';
 const FS_PT='precision mediump float;varying vec4 vC;void main(){float a=smoothstep(.5,0.,length(gl_PointCoord-.5));gl_FragColor=vec4(vC.rgb*vC.a*a*a,1.);}';
 const VS_GLW='attribute vec3 aP;attribute vec4 aC;uniform mat4 uVP,uM;varying vec4 vC;void main(){vC=aC;gl_Position=uVP*uM*vec4(aP,1.);}';
@@ -286,9 +314,9 @@ function initWorld(){
   [0,1,2].forEach(i=>gl.enableVertexAttribArray(i));
   const st=buildStars(),sg=buildStatic();W3.tris=Math.round(sg.n/3);
   const MS={stat:gm(sg),owl:gm(buildOwl()),boat:gm(buildBoat()),beam:gm(buildBeam()),sky:gm(buildSky()),wat:gm(buildWater()),stars:mesh(st.v,st.n),shoal:gm(buildShoal())};
-  const Lg=[.45,.8,.35],ll=Math.hypot(...Lg),LDIR=Lg.map(v=>v/ll),FOG=[.13,.17,.4],LH={x:0,y:(TOP+4.5)*1.3,z:0};
+  const Lg=[.45,.8,.35],ll=Math.hypot(...Lg),LDIR=Lg.map(v=>v/ll),FOG=SZ.sky[0],LH={x:0,y:(TOP+4.5)*1.3,z:0};
   function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;const d=Math.min(window.devicePixelRatio||1,[1.5,1,.75][W3.q]);
-    W3.w=w;W3.h=h;W3.dpr=d;W3.asp=w/h;cv.width=Math.round(w*d);cv.height=Math.round(h*d);if(view.k==='world'&&!CAM.touched){CAM.r=fitR();if(CAM.goal)CAM.goal.r=CAM.r}}
+    W3.w=w;W3.h=h;W3.dpr=d;W3.asp=w/h;cv.width=Math.round(w*d);cv.height=Math.round(h*d);FX.size(w,h);if(view.k==='world'&&!CAM.touched){CAM.r=fitR();if(CAM.goal)CAM.goal.r=CAM.r}}
   const eye=()=>{const sw=(!REDUCED&&!CAM.touched&&view.k==='world')?Math.sin(W3.t*.13)*.14:0,a=CAM.az+sw,ce=Math.cos(CAM.el);return[CAM.tx+Math.sin(a)*ce*CAM.r,Math.sin(CAM.el)*CAM.r,CAM.tz+Math.cos(a)*ce*CAM.r]};
   let VP=ID4;
   W3.proj=(x,y,z)=>{const m=VP,w=m[3]*x+m[7]*y+m[11]*z+m[15];if(w<=.1)return null;return[((m[0]*x+m[4]*y+m[8]*z+m[12])/w*.5+.5)*W3.w,(1-((m[1]*x+m[5]*y+m[9]*z+m[13])/w*.5+.5))*W3.h]};
@@ -297,14 +325,14 @@ function initWorld(){
     fc++;ft+=dt;if(ft>=1){const fps=Math.round(fc/ft);$('#fps').textContent='每秒 '+fps+' 幀・'+['高','中','低'][W3.q]+'畫質・約 '+W3.tris+' 面';if(fps<26&&W3.q<2){if(++low>=2){W3.q++;low=0;resize()}}else low=0;fc=0;ft=0}
     if(CAM.goal){const g=CAM.goal,k=REDUCED?1:1-Math.exp(-dt*3.4);let d=0;for(const p of['az','el','r','tx','tz']){const dv=g[p]-CAM[p];CAM[p]+=dv*k;d+=Math.abs(dv)}if(d<.01)CAM.goal=null}
     const e=eye(),V=look(e,[CAM.tx,.6,CAM.tz]);VP=mul(persp(FOV,W3.asp,.5,900),V);
-    gl.viewport(0,0,cv.width,cv.height);gl.clearColor(.02,.03,.11,1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+    gl.viewport(0,0,cv.width,cv.height);gl.clearColor(SZ.sky[1][0],SZ.sky[1][1],SZ.sky[1][2],1);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
     const lhi=1.1,fogD=.0075,T=REDUCED?0:W3.t;
     gl.disable(gl.DEPTH_TEST);gl.depthMask(false);gl.disable(gl.BLEND);
-    gl.useProgram(P.sky.p);const pitch=Math.asin(Math.min(1,(e[1]-.6)/CAM.r));gl.uniform1f(P.sky.u.uH,Math.tan(pitch)/Math.tan(FOV/2));use(MS.sky);gl.drawArrays(gl.TRIANGLES,0,6);
+    gl.useProgram(P.sky.p);const pitch=Math.asin(Math.min(1,(e[1]-.6)/CAM.r));gl.uniform1f(P.sky.u.uH,Math.tan(pitch)/Math.tan(FOV/2));gl.uniform3fv(P.sky.u.uS0,SZ.sky[0]);gl.uniform3fv(P.sky.u.uS1,SZ.sky[1]);use(MS.sky);gl.drawArrays(gl.TRIANGLES,0,6);
     gl.enable(gl.BLEND);gl.blendFunc(gl.ONE,gl.ONE);gl.useProgram(P.pt.p);gl.uniformMatrix4fv(P.pt.u.uVP,false,VP);gl.uniform1f(P.pt.u.uPx,W3.dpr);gl.uniform1f(P.pt.u.uT,T);use(MS.stars);gl.drawArrays(gl.POINTS,0,MS.stars.n);
     gl.disable(gl.BLEND);gl.enable(gl.DEPTH_TEST);gl.depthMask(true);
-    gl.useProgram(P.wat.p);let u=P.wat.u;gl.uniformMatrix4fv(u.uVP,false,VP);gl.uniform3fv(u.uL,LDIR);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uFog,FOG);gl.uniform3f(u.uLH,LH.x,LH.y,LH.z);gl.uniform1f(u.uT,T);gl.uniform1f(u.uLHi,lhi);gl.uniform1f(u.uFogD,fogD);use(MS.wat);gl.drawArrays(gl.TRIANGLES,0,6);
-    gl.useProgram(P.lit.p);u=P.lit.u;gl.uniformMatrix4fv(u.uVP,false,VP);gl.uniform3fv(u.uL,LDIR);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uFog,FOG);gl.uniform3f(u.uLH,LH.x,LH.y,LH.z);gl.uniform1f(u.uLHi,lhi);gl.uniform1f(u.uFogD,fogD);
+    gl.useProgram(P.wat.p);let u=P.wat.u;gl.uniformMatrix4fv(u.uVP,false,VP);gl.uniform3fv(u.uL,LDIR);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uFog,FOG);gl.uniform3f(u.uLH,LH.x,LH.y,LH.z);gl.uniform1f(u.uT,T);gl.uniform1f(u.uLHi,lhi);gl.uniform1f(u.uFogD,fogD);gl.uniform3fv(u.uW0,SZ.wat[0]);gl.uniform3fv(u.uW1,SZ.wat[1]);use(MS.wat);gl.drawArrays(gl.TRIANGLES,0,6);
+    gl.useProgram(P.lit.p);u=P.lit.u;gl.uniformMatrix4fv(u.uVP,false,VP);gl.uniform3fv(u.uL,LDIR);gl.uniform3fv(u.uCam,e);gl.uniform3fv(u.uFog,FOG);gl.uniform3f(u.uLH,LH.x,LH.y,LH.z);gl.uniform1f(u.uLHi,lhi);gl.uniform1f(u.uFogD,fogD);gl.uniform3fv(u.uTint,SZ.tint);gl.uniform3fv(u.uLeaf,SZ.leaf);gl.uniform1f(u.uLeafK,SZ.leafK);gl.uniform1f(u.uSnow,SZ.snow);gl.uniform1f(u.uTop,TOP*1.0);
     const draw=(m,M)=>{gl.uniformMatrix4fv(u.uM,false,M);use(m);gl.drawArrays(gl.TRIANGLES,0,m.n)};
     draw(MS.stat,ID4);
     if(nextU)draw(MS.owl,trs(nextU.x,TOP+.01+Math.abs(Math.sin(T*2.2))*.09,nextU.z,Math.sin(T*.8)*.35+Math.atan2(nextU.x,nextU.z),.9));
@@ -313,7 +341,7 @@ function initWorld(){
     gl.blendFunc(gl.ONE,gl.ONE);
     gl.useProgram(P.glw.p);gl.uniformMatrix4fv(P.glw.u.uVP,false,VP);gl.uniformMatrix4fv(P.glw.u.uM,false,trs(LH.x,LH.y,LH.z,T*.35));gl.uniform1f(P.glw.u.uA,.22);use(MS.beam);gl.drawArrays(gl.TRIANGLES,0,MS.beam.n);
     gl.disable(gl.BLEND);gl.depthMask(true);
-    updatePins()}
+    updatePins();FX.step(dt,T)}
   const ptr=new Map();let moved=0,pinch=0;
   cv.addEventListener('pointerdown',ev=>{cv.setPointerCapture(ev.pointerId);ptr.set(ev.pointerId,[ev.clientX,ev.clientY]);moved=0;if(ptr.size===2){const a=[...ptr.values()];pinch=Math.hypot(a[0][0]-a[1][0],a[0][1]-a[1][1])}});
   cv.addEventListener('pointermove',ev=>{const p=ptr.get(ev.pointerId);if(!p)return;const dx=ev.clientX-p[0],dy=ev.clientY-p[1];ptr.set(ev.pointerId,[ev.clientX,ev.clientY]);
@@ -323,7 +351,7 @@ function initWorld(){
   cv.addEventListener('wheel',ev=>{ev.preventDefault();CAM.goal=null;CAM.touched=true;CAM.r=Math.max(6,Math.min(95,CAM.r*Math.exp(ev.deltaY*.0012)))},{passive:false});
   window.addEventListener('resize',resize);W3.resize=resize;if(window.ResizeObserver)new ResizeObserver(resize).observe(stage);
   W3.refresh=()=>{R.forEach(r=>r.units.forEach(u=>u.N3.forEach((nd,k)=>nd.on=!!u.on[k])));gl.deleteBuffer(MS.stat.b);const sg2=buildStatic();W3.tris=Math.round(sg2.n/3);MS.stat=gm(sg2);buildPins()};
-  W3.ok=true;buildPins();resize();CAM.el=.95;CAM.r=fitR();CAM.tx=0;CAM.tz=2;frame(performance.now());return true}
+  W3.ok=true;FX.init(stage);buildPins();resize();CAM.el=.95;CAM.r=fitR();CAM.tx=0;CAM.tz=2;frame(performance.now());return true}
 function fitR(){return Math.max(55,61/(W3.asp||1.5))}
 function near(a){let d=(a-CAM.az)%6.2832;if(d>Math.PI)d-=6.2832;if(d<-Math.PI)d+=6.2832;return CAM.az+d}
 function cam3(v){if(!W3.ok)return;const r=R.find(x=>x.id===v.r);if(r&&r.lock)v={k:'world'};

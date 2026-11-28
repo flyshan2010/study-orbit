@@ -52,15 +52,15 @@ const trialNote='<p class="trial-note">試玩中：進度只留在這個分頁�
 /* 目前進度的下一個還沒過的關（今日任務「前進」）：照星圖區的順序找第一本有下一關的 */
 function findNext(){for(const r of R){const m=APP.m(r.book),k=nextLevelKey(r.units.flatMap(u=>u.keys),m.lv);if(!k)continue;
   for(let ui=0;ui<r.units.length;ui++){const li=r.units[ui].keys.indexOf(k);if(li>=0)return{r:r.id,u:ui,l:li,t:r.name+'・'+r.units[ui].lv[li]}}}return null}
-function tasksHTML(){if(!APP.rec())return'';const d=APP.me.today.done,n=findNext(),it=(k,t,s)=>`<li class="${d.includes(k)?'ok':''}"><span>${d.includes(k)?'✅':'⬜'}</span><span><b>${t}</b><small>${s}</small></span></li>`;
+function tasksHTML(noStreak){if(!APP.rec())return'';const d=APP.me.today.done,n=findNext(),it=(k,t,s)=>`<li class="${d.includes(k)?'ok':''}"><span>${d.includes(k)?'✅':'⬜'}</span><span><b>${t}</b><small>${s}</small></span></li>`;
   return`<h3>📋 今日任務 ${Math.min(d.length,3)}／3${d.length>=3?'　🎉 3／3 完成！':''}</h3><ul class="tasks">${it('r','複習','卡冊挑一張卡；沒有卡要複習，就把還沒 3 星的關再玩一次')}${it('n','前進',n?'下一關：'+n.t:'目前開放的關都過了！')}${it('f','自選','任選一關打一回合')}</ul>`
-   +(APP.me.streak?`<p>🔥 連續自學 <b>${APP.me.streak}</b> 天<small class="mut">（週末、放假沒玩不會中斷）</small></p>`:'')
+   +(APP.me.streak&&!noStreak?`<p>🔥 連續自學 <b>${APP.me.streak}</b> 天<small class="mut">（週末、放假沒玩不會中斷）</small></p>`:'')
    +(n&&!d.includes('n')&&d.length<3?`<button class="btn" id="toNext">▶ 前進：${n.t}</button>`:'')}
 function wireLogin(){panel.querySelectorAll('[data-login]').forEach(b=>b.onclick=loginDlg);const n=$('#toNext');if(n)n.onclick=()=>{const x=findNext();if(x)go({k:'level',r:x.r,u:x.u,l:x.l})}}
-function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝關卡，一關 7 題</li></ul><h3>各科進度</h3>`
+function pWorld(){panel.innerHTML=`<h2>歡迎來到自學星圖</h2>${APP.rec()?'':trialNote}${tasksHTML()}<ul><li><b>中間皇城</b>＝我的星星、複習卡冊、故事卡</li><li><b>各區</b>＝國語、數學、社會…，點一區看小島</li><li><b>小島</b>＝單元；島上的燈籠＝<b>課後練習</b>，一關 7 題</li></ul><h3>各科進度</h3>`
   +R.map(r=>`<div class="mut">${r.name}・${r.bookTitle}　${r.done}／${r.total} 關</div>${bar(r.total?r.done/r.total*100:0,r.c.t1)}`).join('')+'<p class="mut">點地圖上的標籤進入。老師把新的單元做好，這裡就會自動多出小島。</p>';wireLogin()}
 function totalsAll(){let s=0,c=0;R.forEach(r=>{const t=totals(APP.m(r.book).lv);s+=t.stars;c+=t.completed});return{stars:s,completed:c}}
-function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
+function pCastleOld(){ /* 改版前的皇城側欄：P3 第②步驗收完才刪（SPEC P3 §9 退路） */const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
   const todo=decks.reduce((a,x)=>a+x.d.todo.length+x.d.due.length,0),okN=decks.reduce((a,x)=>a+x.d.ok+x.d.wait.length,0);
   const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
   const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
@@ -72,6 +72,48 @@ function pCastle(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:dec
   $('#toRank').onclick=()=>tab('t4');wireLogin();
   panel.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const[book,k,due]=b.dataset.card.split('|'),full=book+'-'+k,q=cardQuestion(DATA.books[book].questions,full);
     if(!q){b.disabled=true;b.textContent='沒有題目';return}G8.openCard({book,code:full,name:APP.card(book,k).name,q,due:due==='1'})})}
+/* ---------- 皇城側欄（P3 §2.1，範本 13 第①頁）：資料全部來自存檔與代理既有回覆，不新增代理欄位 ---------- */
+const CASTLE_V2=true; /* 退路：改 false＝回到改版前側欄 */
+function pCastle(){return CASTLE_V2?pCastleV2():pCastleOld()}
+function ringSVG(p,c,mid){const r=40,L=2*Math.PI*r;return`<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="50" r="${r}" fill="none" stroke="#ffffff1a" stroke-width="11"/>${p>0?`<circle cx="50" cy="50" r="${r}" fill="none" stroke="${c}" stroke-width="11" stroke-linecap="round" stroke-dasharray="${(L*p).toFixed(1)} ${L.toFixed(1)}" transform="rotate(-90 50 50)"/>`:''}<text x="50" y="57" text-anchor="middle" fill="#eef0ff" font-size="${mid.length>4?15:20}" font-weight="800">${mid}</text></svg>`}
+const ringBox=(p,c,mid,t,sub)=>`<div class="ring">${ringSVG(p,c,mid)}<b>${t}</b><small>${sub}</small></div>`;
+/* 島的短名：國語「第一課」、其他科「三單元」 */
+const isleShort=(r,u)=>{const h=u.un.split(/[ 、]/)[0];return r.subj==='國語'?h:h+'單元'};
+/* 下一步建議：依存檔照固定順序挑前 2 條成立的（句子寫死，P3 §2.1 第 6 項；第②步起加島心、第④步起加百鍊塔） */
+function castleTips(due){const t=[];
+  if(due)t.push(`🃏 有 ${due} 張秘笈卡到期了，先複習最划算。`);
+  for(const r of R){const u=r.units.find(u=>u.total&&u.total-u.done>0&&u.total-u.done<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.total-u.done} 關沒亮，過完這座島就全亮了。`);break}}
+  outer:for(const r of R)for(const u of r.units)for(let i=0;i<u.best.length;i++)if(u.best[i]===1||u.best[i]===2){t.push(`⭐ ${r.name}科「${u.lv[i]}」再玩一次有機會拿 3 星。`);break outer}
+  if(!t.length)t.push('✨ 今天挑一座新的島探險吧！');return t.slice(0,2)}
+/* 本週七格：代理回 days 才畫（第②步部署後才有 weekDays）；沒有就只顯示連續天數，不用本機資料假造 */
+function weekHTML(today){if(!APP.rec())return'';const w=Array.isArray(APP.me.days)&&typeof weekDays==='function'?weekDays(APP.me.days,today):null;
+  return`<h3>🔥 ${w?'本週自學 '+w.filter(Boolean).length+' 天・':''}連續 ${APP.me.streak||0} 天</h3>`
+    +(w?`<div class="week">${w.map((on,i)=>`<i class="${on?'on':''}">${'一二三四五六日'[i]}</i>`).join('')}</div>`:'')+'<p class="mut">週末、放假沒玩不會中斷。</p>'}
+function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:deckOf(APP.m(r.book),today)}));
+  const sum=f=>decks.reduce((a,x)=>a+f(x.d),0),nT=sum(d=>d.todo.length),nDue=sum(d=>d.due.length),nD=nDue+sum(d=>d.wait.length),nO=sum(d=>d.ok);
+  const lvDone=R.reduce((a,r)=>a+r.done,0),lvAll=R.reduce((a,r)=>a+r.total,0),isl=R.flatMap(r=>r.units),chests=isl.filter(u=>u.chest).length;
+  const rings=ringBox(lvAll?lvDone/lvAll:0,'var(--ok)',lvAll?Math.round(lvDone/lvAll*100)+'%':'0%','課後練習',`${lvDone}／${lvAll} 關`)
+   +ringBox(0,'var(--gold)','🔒','百鍊塔','即將開放')
+   +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心寶箱',`已開 ${chests}／${isl.length} 個`);
+  const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
+    `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map(v=>`<i class="dot${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
+  const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
+  const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
+  const stories=R.map(r=>{const m=APP.m(r.book),bk=DATA.books[r.book];if(!bk)return'';const got=bk.stories.filter(s=>m.sc.includes(APP.short(r.book,s.level)));
+    return`<div class="mut">${r.name}　${got.length}／${bk.stories.length} 張</div>`+got.map(s=>`<details class="sty"><summary>📖 ${esc(s.title)}</summary>${esc(s.body)}</details>`).join('')}).join('');
+  panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.rec()?'':trialNote}
+   <h3>我的三種練習</h3><div class="rings">${rings}</div><p class="mut">累計 ${t.stars} ★・完成 ${t.completed} 關</p>
+   <h3>我的星座圖</h3><p class="mut">一點＝一關、一串＝一座島；點一串就飛過去。</p><div class="cons">${cons}</div>
+   <div class="lgd"><span><i class="dot"></i>還沒過</span><span><i class="dot s1"></i>1 星</span><span><i class="dot s2"></i>2 星</span><span><i class="dot s3"></i>3 星</span></div>
+   ${tasksHTML(true)}${weekHTML(today)}
+   <h3>🃏 秘笈卡冊</h3><div class="stacks"><div class="stk"><b>${nT}</b>待複習</div><div class="stk"><b>${nD}</b>7 天後確認${nDue?`<small>今天到期 ${nDue} 張</small>`:''}</div><div class="stk"><b>${nO}</b>已克服</div></div>
+   ${list?`<details class="deckbox"><summary class="btn">🃏 去複習（${nT+nDue} 張）</summary><ul class="deck">${list}</ul></details>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
+   <h3>💡 下一步建議</h3><ul class="tips">${castleTips(nDue).map(x=>`<li>${x}</li>`).join('')}</ul>
+   <details class="more"><summary>📖 故事卡圖鑑・🏆 排行榜</summary>${stories}<button class="btn" id="toRank">🏆 看排行榜</button></details>`;
+  $('#toRank').onclick=()=>tab('t4');wireLogin();
+  panel.querySelectorAll('[data-isle]').forEach(b=>b.onclick=()=>{const[r,u]=b.dataset.isle.split('|');go({k:'island',r,u:+u})});
+  panel.querySelectorAll('[data-card]').forEach(b=>b.onclick=()=>{const[book,k,due]=b.dataset.card.split('|'),full=book+'-'+k,q=cardQuestion(DATA.books[book].questions,full);
+    if(!q){b.disabled=true;b.textContent='沒有題目';return}G8.openCard({book,code:full,name:APP.card(book,k).name,q,due:due==='1'})})}
 function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.innerHTML=`<h2>${r.name}區・${r.zone}</h2><p class="mut">${r.bookTitle}｜${r.units.length} 座小島・${r.done}／${r.total} 關</p>`
   +(bs.length>1?`<h3>換一本題本</h3><div class="seg">${bs.map(b=>`<button class="btn${b.code===r.book?' on':''}" data-bk="${esc(b.code)}">${esc(b.title)}</button>`).join('')}</div>`:'')
@@ -80,7 +122,7 @@ function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];
   panel.innerHTML=`<h2>${u.un}</h2><p class="mut">${r.name}・${u.u}｜${u.total} 關${u.ex?'・期中評量考過（複習用）':''}</p>${bar(u.total?u.done/u.total*100:0,r.c.t1)}
-   <ol class="lvs">${u.lv.map((t,i)=>`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
+   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
    <p class="mut">${u.chest?'🎁 寶箱打開了！':'🔒 每一關都「七盞全金」，寶箱就會打開。'}</p>`;
   panel.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>go({k:'level',r:r.id,u:ui,l:+b.dataset.l}))}
 function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[li];
