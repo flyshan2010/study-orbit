@@ -82,8 +82,8 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
   const sum=f=>decks.reduce((a,x)=>a+f(x.d),0),nT=sum(d=>d.todo.length),nDue=sum(d=>d.due.length),nD=nDue+sum(d=>d.wait.length),nO=sum(d=>d.ok);
   const lvDone=R.reduce((a,r)=>a+r.done,0),lvAll=R.reduce((a,r)=>a+r.total,0),isl=R.flatMap(r=>r.units),chests=isl.filter(u=>u.chest).length;
   const rings=ringBox(lvAll?lvDone/lvAll:0,'var(--ok)',lvAll?Math.round(lvDone/lvAll*100)+'%':'0%','島嶼點燈',`${lvDone}／${lvAll} 關`)
-   +ringBox(0,'var(--gold)','🔒','百鍊塔','即將開放')
-   +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心寶箱',`已開 ${chests}／${isl.length} 個`);
+   +ringBox(0,'var(--gold)','🔒','百鍊之塔','即將開放')
+   +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心試煉',`寶箱已開 ${chests}／${isl.length} 個`);
   const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
     `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map((v,i)=>`<i class="dot${i===u.core?' dia'+(u.open?'':' lk'):''}${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
   const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
