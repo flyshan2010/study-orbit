@@ -385,3 +385,8 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 .tips{padding-left:0;list-style:none}.tips li{background:#0d1436;border-left:4px solid var(--gold);border-radius:8px;padding:8px 10px;margin:6px 0;line-height:1.5}
 .more{margin-top:12px}.more>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--mut)}
 @media(max-width:600px){#sz{top:10px;bottom:auto}}
+
+/* P3 第②步：島心（星座圖菱形、地圖名牌） */
+.dot.dia{border-radius:2px;transform:rotate(45deg) scale(.92);background:#b9a6ff40;border-color:#b9a6ff}.dot.dia.lk{background:#ffffff14;border-color:#ffffff55;border-style:dashed}
+.dot.dia.s1{background:#c98b4a;border-color:#b9a6ff}.dot.dia.s2{background:#cfd6ea;border-color:#b9a6ff}.dot.dia.s3{background:var(--gold);border-color:#b9a6ff}
+.pin.pl.core{background:#e7defff2;border-color:#8f7be0;font-weight:800}.pin.pl.core.lk{background:#e3e6f2f2;border-color:#9aa3c4}.pin.pl.core.on{background:#ffe9a8f2}

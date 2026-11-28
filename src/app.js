@@ -30,14 +30,14 @@ const APP={me:null,paused:false,save:{},
   card(book,code){const full=code.indexOf(book+'-')===0?code:book+'-'+code,b=(DATA.books[book]||{blindspots:[]}).blindspots.find(x=>x.code===full);
     return b?{name:b.name,...b.card}:{name:'秘笈卡',fix:'',ex:'',chk:''}},
   /* 回合結束 ["e", 關, 任務來源]：最高星等、曾經全金、挑戰次數、故事卡 */
-  endRound(LV,g,sv){const m=this.m(LV.book),before=(m.lv[LV.key]||[0])[0],src=this.rec()?this.taskOf(LV,m,before):'';
+  endRound(LV,g,sv){const m=this.m(LV.book),before=(m.lv[LV.key]||[0])[0],src=this.rec()?this.taskOf(LV,m,before):'',was=chestOpen(LV.isl,m.lv);
     const res=applyRound(m.lv[LV.key]||[0,0,0],g,sv),got=LV.got||0;LV.got=0;
     if(this.rec()){if(m.mid&&m.mid.k===LV.key)m.mid=null;API.setMid(LV.book,null);if(src)this.me.today.done.push(src)}
     m.lv[LV.key]=res.record;let storyNew=false;
     if(passed(g,sv)&&LV.story&&!m.sc.includes(LV.key)){m.sc.push(LV.key);storyNew=true}
     this.log(LV.book,['e',LV.key,src]);this.persist(LV.book);if(this.rec())API.flush();
-    const isl=LV.islandKeys,gold=isl.filter(k=>(m.lv[k]||[])[1]===1).length;
-    return{gained:res.gained,storyNew,cards:got,chest:[gold,isl.length]}},
+    const now=chestOpen(LV.isl,m.lv);
+    return{gained:res.gained,storyNew,cards:got,chest:now,chestNew:now&&!was}},
   /* 卡冊挑戰 ["c", 盲點, 題目ID, 選項, 秒數] */
   cardResult(c,q,opt,sec,ok){const m=this.m(c.book),k=this.short(c.book,c.code),now=cardAfter(m.cd[k],ok,todayStr());
     this.log(c.book,['c',k,q.id,opt,sec]);
@@ -82,7 +82,9 @@ const isleShort=(r,u)=>{const h=u.un.split(/[ 、]/)[0];return r.subj==='國語'
 /* 下一步建議：依存檔照固定順序挑前 2 條成立的（句子寫死，P3 §2.1 第 6 項；第②步起加島心、第④步起加百鍊塔） */
 function castleTips(due){const t=[];
   if(due)t.push(`🃏 有 ${due} 張秘笈卡到期了，先複習最划算。`);
-  for(const r of R){const u=r.units.find(u=>u.total&&u.total-u.done>0&&u.total-u.done<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.total-u.done} 關沒亮，過完這座島就全亮了。`);break}}
+  for(const r of R){const u=r.units.find(u=>u.left>0&&u.left<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.left} 關沒亮，過完就能挑戰島心試煉。`);break}}
+  for(const r of R){const u=r.units.find(u=>u.open&&!u.chest&&u.core>=0);if(u){const b=u.best[u.core]||0;
+    t.push(b===3?`💠 ${r.name}科「${u.un}」的島心試煉還差 1 盞金燈就開寶箱。`:`💠 ${r.name}科「${u.un}」的島心試煉七盞全金，就能打開寶箱。`);break}}
   outer:for(const r of R)for(const u of r.units)for(let i=0;i<u.best.length;i++)if(u.best[i]===1||u.best[i]===2){t.push(`⭐ ${r.name}科「${u.lv[i]}」再玩一次有機會拿 3 星。`);break outer}
   if(!t.length)t.push('✨ 今天挑一座新的島探險吧！');return t.slice(0,2)}
 /* 本週七格：代理回 days 才畫（第②步部署後才有 weekDays）；沒有就只顯示連續天數，不用本機資料假造 */
@@ -96,7 +98,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
    +ringBox(0,'var(--gold)','🔒','百鍊塔','即將開放')
    +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心寶箱',`已開 ${chests}／${isl.length} 個`);
   const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
-    `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map(v=>`<i class="dot${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
+    `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map((v,i)=>`<i class="dot${i===u.core?' dia'+(u.open?'':' lk'):''}${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
   const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
   const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
   const stories=R.map(r=>{const m=APP.m(r.book),bk=DATA.books[r.book];if(!bk)return'';const got=bk.stories.filter(s=>m.sc.includes(APP.short(r.book,s.level)));
@@ -104,7 +106,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
   panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.rec()?'':trialNote}
    <h3>我的三種練習</h3><div class="rings">${rings}</div><p class="mut">累計 ${t.stars} ★・完成 ${t.completed} 關</p>
    <h3>我的星座圖</h3><p class="mut">一點＝一關、一串＝一座島；點一串就飛過去。</p><div class="cons">${cons}</div>
-   <div class="lgd"><span><i class="dot"></i>還沒過</span><span><i class="dot s1"></i>1 星</span><span><i class="dot s2"></i>2 星</span><span><i class="dot s3"></i>3 星</span></div>
+   <div class="lgd"><span><i class="dot"></i>還沒過</span><span><i class="dot s1"></i>1 星</span><span><i class="dot s2"></i>2 星</span><span><i class="dot s3"></i>3 星</span><span><i class="dot dia"></i>島心</span></div>
    ${tasksHTML(true)}${weekHTML(today)}
    <h3>🃏 秘笈卡冊</h3><div class="stacks"><div class="stk"><b>${nT}</b>待複習</div><div class="stk"><b>${nD}</b>7 天後確認${nDue?`<small>今天到期 ${nDue} 張</small>`:''}</div><div class="stk"><b>${nO}</b>已克服</div></div>
    ${list?`<details class="deckbox"><summary class="btn">🃏 去複習（${nT+nDue} 張）</summary><ul class="deck">${list}</ul></details>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
@@ -122,24 +124,33 @@ function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];
   panel.innerHTML=`<h2>${u.un}</h2><p class="mut">${r.name}・${u.u}｜${u.total} 關${u.ex?'・期中評量考過（複習用）':''}</p>${bar(u.total?u.done/u.total*100:0,r.c.t1)}
-   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
-   <p class="mut">${u.chest?'🎁 寶箱打開了！':'🔒 每一關都「七盞全金」，寶箱就會打開。'}</p>`;
+   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>i===u.core?'':`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
+   ${u.core>=0?`<h3>島心與寶箱</h3><p><button class="lnk" data-l="${u.core}">${coreTitle(u)}</button> <span class="st">${u.open?(u.best[u.core]?'★'.repeat(u.best[u.core])+'☆'.repeat(3-u.best[u.core]):'未挑戰'):'🔒 還差 '+u.left+' 關'}</span></p>`:''}
+   <p class="mut">${u.chest?'🎁 寶箱打開了！':'🎁 島心試煉七盞全金，寶箱就會打開。'}</p>`;
   panel.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>go({k:'level',r:r.id,u:ui,l:+b.dataset.l}))}
-function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[li];
-  return{book:r.book,key:u.keys[li],code,subj:r.id,crumb:`${r.name}區・${u.un}`,title:u.keys[li]+' '+u.lv[li],slots:u.slots[li],
-    questions:bk.questions,story:bk.stories.find(s=>s.level===code)||null,islandKeys:u.keys,src:''}}
-function pLevel(r,ui,li){const u=r.units[ui],m=APP.m(r.book),rec=m.lv[u.keys[li]]||[0,0,0],bk=DATA.books[r.book];
-  const kps=bk?bk.kps.filter(k=>k.level===u.codes[li]):[];
+/* 島心的標題：國語「💠 島心・1-5 美麗島・評量複習」；虛擬島心「💠 島心試煉」 */
+const coreTitle=u=>u.virt?'💠 島心試煉':'💠 島心・'+u.keys[u.core]+' '+u.lv[u.core];
+function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[li],isCore=li===u.core,virt=isCore&&u.virt;
+  const slotsOf=c=>{const k=u.codes.indexOf(c);return k>=0?u.slots[k]:[]};
+  return{book:r.book,key:u.keys[li],code,subj:r.id,crumb:`${r.name}區・${u.un}`,title:isCore?coreTitle(u):u.keys[li]+' '+u.lv[li],slots:u.slots[li],
+    questions:bk.questions,story:bk.stories.find(s=>s.level===code)||null,islandKeys:u.keys,isl:u.isl,isCore,
+    coreLv:virt?u.coreLv:null,slotsOf,src:''}}
+function pLevel(r,ui,li){const u=r.units[ui],m=APP.m(r.book),rec=m.lv[u.keys[li]]||[0,0,0],bk=DATA.books[r.book],isCore=li===u.core;
+  if(isCore&&!u.open){panel.innerHTML=`<h2>${coreTitle(u)}</h2><p class="mut">${r.name}・${u.un}</p><p>🔒 這座島其他的關都過關（至少 1 星），島心試煉就會開放。</p><p><b>還差 ${u.left} 關</b></p>
+     <p class="mut">島心試煉七盞全金，就能打開這座島的寶箱。</p>`;return}
+  const kps=bk?bk.kps.filter(k=>isCore&&u.virt?u.coreLv.includes(k.level):k.level===u.codes[li]):[];
   /* 換載具接續：存檔裡有這一關答到一半的 mid → 「繼續上次（第 N 題）」 */
-  const rs=APP.rec()&&bk&&m.mid&&m.mid.k===u.keys[li]?resumeOf(m.mid,bk.questions,u.codes[li]):null;
-  panel.innerHTML=`<h2>${u.keys[li]} ${u.lv[li]}</h2><p class="mut">${r.name}・${u.un}${u.exam[li]?'・'+esc(u.exam[li])+'評量範圍':''}</p>
+  const rs=APP.rec()&&bk&&m.mid&&m.mid.k===u.keys[li]?resumeOf(m.mid,bk.questions,u.codes[li],isCore&&u.virt?u.coreLv:null):null;
+  panel.innerHTML=`<h2>${isCore?coreTitle(u):u.keys[li]+' '+u.lv[li]}</h2><p class="mut">${r.name}・${u.un}${u.exam[li]?'・'+esc(u.exam[li])+'評量範圍':''}</p>
    ${rs?`<button class="btn go" id="resume">⏯ 繼續上次（${rs.n>=rs.plan.length?'看結果':'第 '+midSlot(m.mid)+' 題'}）</button> `:''}<button class="btn go${rs?' ghost':''}" id="enter">▶ ${rs?'重新開始':'進入這一關'}</button>
    <p>${rec[0]?`最高紀錄 ${'★'.repeat(rec[0])+'☆'.repeat(3-rec[0])}・挑戰 ${rec[2]} 次${rec[1]?'・曾經七盞全金':''}`:'還沒挑戰過'}</p>
-   ${kps.length?`<h3>這一關的學習重點</h3><ul>${kps.map(k=>`<li>${esc(k.name)}</li>`).join('')}</ul>`:''}
-   <p class="mut">一關 7 題，答對一題點亮一盞燈；3 盞以上就過關，可以翻一張故事卡。</p>`;
+   ${kps.length?`<h3>${isCore?'這座島':'這一關'}的學習重點</h3><ul>${kps.map(k=>`<li>${esc(k.name)}</li>`).join('')}</ul>`:''}
+   <p class="mut">${isCore?(u.virt?'島心試煉從這座島各關抽 7 題；':'')+'7 盞燈全部金燈，就能打開這座島的寶箱'+(u.chest?'（🎁 已打開）':'')+'。':'一關 7 題，答對一題點亮一盞燈；3 盞以上就過關，可以翻一張故事卡。'}</p>`;
   $('#enter').onclick=()=>G8.open(lvCtx(r,ui,li));if(rs)$('#resume').onclick=()=>G8.open({...lvCtx(r,ui,li),resume:rs})}
-function pChest(r,ui){const u=r.units[ui],m=APP.m(r.book),gold=u.keys.filter(k=>(m.lv[k]||[])[1]===1).length;
-  panel.innerHTML=`<h2>${u.un}的寶箱</h2><p>這座島的每一關都<b>七盞全金</b>（不必同一天），寶箱就會打開。</p><p class="mut">${u.chest?'🎁 寶箱打開了！':'目前七盞全金的關：'+gold+'／'+u.total+' 關'}</p>`}
+function pChest(r,ui){const u=r.units[ui];
+  panel.innerHTML=`<h2>${u.un}的寶箱</h2><p><b>島心試煉七盞全金</b>，寶箱就會打開。</p><p class="mut">${u.chest?'🎁 寶箱打開了！':u.open?'💠 島心試煉已經開放，去挑戰吧！':'🔒 島心試煉還沒開放：其他的關還差 '+u.left+' 關過關。'}</p>
+   ${u.core>=0&&!u.chest?`<button class="btn go" id="toCore">💠 去島心試煉</button>`:''}`;
+  const b=$('#toCore');if(b)b.onclick=()=>go({k:'level',r:r.id,u:ui,l:u.core})}
 
 /* ---------- 分頁 ---------- */
 function tab(id){document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));

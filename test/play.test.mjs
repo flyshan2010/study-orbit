@@ -4,12 +4,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { planRound, parsePairs, pairsStr, judgeChoice, judgeMatch, cardsFor, cardQuestion, deckOf, cardAfter } from "../src/play.mjs";
+import { planCore, planRound, parsePairs, pairsStr, judgeChoice, judgeMatch, cardsFor, cardQuestion, deckOf, cardAfter } from "../src/play.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DATA = path.join(here, "../../class-website/data/study-orbit");
 const has = fs.existsSync(path.join(DATA, "index.json"));
 const load = (f) => JSON.parse(fs.readFileSync(path.join(DATA, f), "utf8"));
+import { islandCore } from "../src/rules.mjs";
 
 test("每一關都排得出剛好 7 格、每格一題、另一題留給再挑戰", { skip: !has }, () => {
   const idx = load("index.json");
@@ -78,4 +79,33 @@ test("卡冊：抽得到掛這個盲點的題、到期判斷、改卡", () => {
   assert.equal(cardAfter(["d", "2026-11-10"], true, "2026-11-17"), "o");
   assert.deepEqual(cardAfter(["d", "2026-11-15"], true, "2026-11-17"), ["d", "2026-11-15"]);
   assert.deepEqual(cardAfter(["d", "2026-11-10"], false, "2026-11-17"), ["t", "2026-11-17"]);
+});
+
+test("P3 §3.1 虛擬島心 7 格：每關至少 1 格、同回合不重題、燈形照原格；三本真題本各島各跑 200 次", { skip: !has }, () => {
+  const idx = load("index.json");
+  let nCore = 0;
+  for (const b of idx.books) {
+    const bk = load(b.code + ".json"), slotsOf = (c) => b.structure.islands.flatMap((i) => i.levels).find((l) => l.code === c).slots;
+    for (const isl of b.structure.islands) {
+      const core = islandCore(isl);
+      if (!core.virtual) continue;
+      nCore++;
+      for (let n = 0; n < 200; n++) {
+        const plan = planCore(bk.questions, core, slotsOf);
+        assert.equal(plan.length, 7, `${core.key} 第 ${n} 次`);
+        assert.deepEqual(plan.map((x) => x.slots[0]), [1, 2, 3, 4, 5, 6, 7]);
+        const ids = plan.flatMap((x) => [x.q.id, x.alt && x.alt.id].filter(Boolean));
+        assert.equal(new Set(ids).size, ids.length, `${core.key} 重題`);
+        for (const lv of core.levels.slice(0, 7)) assert.ok(plan.some((x) => x.q.level === lv), `${core.key} 少了 ${lv}`);
+        for (const x of plan) {
+          assert.ok(core.levels.includes(x.q.level));
+          assert.equal(x.kind, slotsOf(x.q.level)[x.q.slot - 1]);
+          assert.ok(!(Number(x.q.span) > 1), "配合題不進島心");
+          if (x.alt) assert.equal(x.alt.slot, x.q.slot); // 再挑戰＝同一格的另一道變式
+        }
+        assert.ok(plan.some((x) => x.kind === "應用"), `${core.key} 沒有應用格`);
+      }
+    }
+  }
+  assert.equal(nCore, 11, "數學 7 島＋社會 4 島");
 });

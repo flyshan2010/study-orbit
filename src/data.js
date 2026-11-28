@@ -48,15 +48,18 @@ function buildRegions(){
     const islands=(b.structure&&b.structure.islands)||[];
     /* 國語：一座島＝一課，島名＝單元名；單元序號讀題本 islands[].unit，沒填就依島名出現順序推（SPEC §7 地圖命名規則） */
     const unames=[...new Set(islands.map(x=>x.name))],uno=isl=>subj==='國語'?(Number(isl.unit)||unames.indexOf(isl.name)+1):0;
-    const units=islands.map((isl,i)=>{const lvs=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+    const units=islands.map((isl,i)=>{const real=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+      /* P3 §3.1 島心：國語＝第 5 關「評量複習」原地升格；數學社會＝虛擬島心 <島>-0（排在各關之後，從各關題池抽題） */
+      const core=islandCore(isl),lvs=core.virtual&&real.length?[...real,{code:core.key,name:'島心試煉',exam:'',slots:[]}]:real,ci=lvs.findIndex(l=>l.code===core.key);
       return{n:esc(isl.name),un:esc(unitName(subj,isl)),uno:no,ul,u:ul||'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
-        lv:lvs.map(l=>esc(l.name)),pin:lvs.map(l=>esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
+        lv:lvs.map(l=>esc(l.name)),pin:lvs.map((l,k)=>k===ci?'島心試煉':esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
         keys:lvs.map(l=>shortKey(b.code,l.code)),exam:lvs.map(l=>l.exam||''),slots:lvs.map(l=>l.slots||[]),
-        ex:lvs.length>0&&lvs.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false}});
+        core:ci,virt:core.virtual,coreLv:core.levels,isl:{id:isl.id,levels:real.map(l=>({code:shortKey(b.code,l.code),name:l.name}))},
+        ex:real.length>0&&real.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false,open:false,left:0}});
     return{id:T.id,name:esc(subj),subj,zone:T.zone,style:T.style,ang:T.ang,c:T.c,gl:T.gl,per:1,
       book:b.code,bookTitle:esc(b.title),units,done:0,total:units.reduce((a,u)=>a+u.total,0)}}).filter(Boolean)}
 /* save＝{題本代碼: decodeSave() 的形狀} */
 function applyProgress(R,save){R.forEach(r=>{const m=save[r.book]||{lv:{}};
   r.units.forEach(u=>{u.best=u.keys.map(k=>(m.lv[k]||[0])[0]);u.on=u.best.map(s=>s>=1);
-    u.done=u.on.filter(Boolean).length;u.chest=u.keys.length>0&&chestOpen(u.keys,m.lv)});
+    u.done=u.on.filter(Boolean).length;u.chest=chestOpen(u.isl,m.lv);u.open=coreOpen(u.isl,m.lv);u.left=coreLeft(u.isl,m.lv)});
   r.done=r.units.reduce((a,u)=>a+u.done,0)})}

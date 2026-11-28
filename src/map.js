@@ -211,7 +211,9 @@ VR.forEach((r,vi)=>{const n=r.units.length,a=Math.PI/2-vi*SW,ex=r.units.filter(u
   r.X3=Math.cos(a)*14.5;r.Z3=Math.sin(a)*14.5;
   r.units.forEach((u,i)=>{const row=i<inner?0:1,m=row?outer:inner,rad=row?17.6:11.3,f=m===2?.56:1,span=tot[row]-1,t=a+(m===1?0:(pos[i]/span-.5)*W*f),sp=m===1?9:rad*W*f/span;
     u.E3=split&&row===0;u.R3=Math.max(1.15,Math.min(2.6,sp*.43));u.X3=Math.cos(t)*rad;u.Z3=Math.sin(t)*rad;u.S3=r.ang+i*7.3;
-    u.N3=u.lv.map((_,k)=>{const q=Math.atan2(-u.Z3,-u.X3)+.55+(u.lv.length>1?k/(u.lv.length-1)*4.3:0),d=u.R3*.58;return{q,x:u.X3+Math.cos(q)*d,z:u.Z3+Math.sin(q)*d,on:!!u.on[k]}})})});
+    /* P3 §3.1 島心排在島中央；其餘各關沿弧線排；QC＝弧線缺口（朝皇城）的角度，地標移到那裡 */
+    {const q0=Math.atan2(-u.Z3,-u.X3)+.55,nn=u.lv.length-(u.core>=0?1:0);let j=0;u.QC=q0-1.0;
+     u.N3=u.lv.map((_,k)=>{if(k===u.core)return{q:u.QC,x:u.X3,z:u.Z3,on:!!u.on[k],core:1};const q=q0+(nn>1?j++/(nn-1)*4.3:0),d=u.R3*.58;return{q,x:u.X3+Math.cos(q)*d,z:u.Z3+Math.sin(q)*d,on:!!u.on[k]}})}})});
 /* 可愛風零件（都畫在原點、底面 y=0；c＝該區配色） */
 const PR={
   pine:(g,c)=>{g.cyl(0,0,0,.07,.06,.3,5,WOOD);g.cyl(0,.24,0,.36,0,.6,6,c.t1);g.cyl(0,.56,0,.26,0,.5,6,c.t2)},
@@ -261,6 +263,12 @@ function put(g,key,c,x,z,rot,s){g.at(trs(x,TOP,z,rot,s),()=>(PR[key]||PR.pine)(g
 /* 考過定期評量的島：靠皇城那一側插一面紅旗 */
 function examFlag(g,x,z,R){const d=Math.hypot(x,z),fx=x-x/d*R*.8,fz=z-z/d*R*.8;g.cyl(fx,TOP,fz,.05,.05,1.9,5,WHITE);for(const s of[1,-1])g.tri([fx,TOP+1.9,fz],[fx,TOP+1.25,fz],[fx+s*.001+.75,TOP+1.57,fz],RED,.5);g.tri([fx,TOP+1.9,fz],[fx+.75,TOP+1.57,fz],[fx,TOP+1.25,fz],RED,.5);g.ball(fx,TOP+1.98,fz,.09,GOLD,1,6,4)}
 /* 關卡圓台：過關＝金色，未過＝該區顏色；中間一圈白環 */
+/* 寶箱：有島心就擺在島心旁（朝皇城那側），沒有就沿用弧線缺口 */
+function chestPos(u){const k=u.core>=0?u.R3*.3:u.R3*.58;return[u.X3+Math.cos(u.QC)*k,u.Z3+Math.sin(u.QC)*k]}
+/* 島心台：大一號的石台＋菱形寶石；st＝0 未開放（灰）／1 開放（紫）／2 寶箱已開（金） */
+function corePad(g,x,z,st,c){const gem=st===2?GOLD:st===1?hex(0xb9a6ff):hex(0x8088a8),em=st?.6:.05;
+  g.cyl(x,TOP,z,.62,.5,.2,8,STONE,.05,Math.PI/8);g.cyl(x,TOP+.2,z,.4,.4,.03,8,WHITE,.9,Math.PI/8);
+  g.cyl(x,TOP+.25,z,0,.28,.34,4,gem,em,Math.PI/4);g.cyl(x,TOP+.59,z,.28,0,.34,4,gem,em,Math.PI/4)}
 function pad(g,x,z,on,c){const b=on?hex(0xf2b34c):c.t1;g.cyl(x,TOP,z,.42,.34,.15,12,b,on?.25:.05);g.cyl(x,TOP+.15,z,.26,.26,.02,12,WHITE,.9);g.cyl(x,TOP+.16,z,.17,.17,.02,12,b,on?.4:.1)}
 function lampPost(g,x,z,on,lock){g.cyl(x,TOP,z,.035,.035,.5,5,STONE);g.ball(x,TOP+.62,z,.15,lock?hex(0x8088a8):on?GOLD:WHITE,lock?0:on?1:.25,8,5)}
 /* 皇城：日式天守，塔頂就是原本的燈塔 */
@@ -277,14 +285,15 @@ function buildStatic(){const g=new Geo();g.at(trs(0,0,0,0,1.25,1.3,1.25),()=>bui
     const col=v=>r.lock?v.map(x=>x*.55+.2):v,cc={t1:col(c.t1),t2:col(c.t2),m1:col(c.m1)};
     r.units.forEach((u,ui)=>{const P=blob(u.R3,u.S3),rr=rng(ri*131+ui*17+3);
       g.slab(u.X3,u.Z3,P,-.5,1.12,.12,1.04,dark(sand,lk),dark(sand,lk));g.slab(u.X3,u.Z3,P,.12,1,TOP,.94,col(edge),col(land));
-      g.at(trs(u.X3,TOP,u.Z3,-Math.atan2(u.Z3,u.X3)+Math.PI/2,.9*u.R3/2.2),()=>(PR[u.lm]||PR.pine)(g,cc));
+      {const hc=u.core>=0,lx=hc?u.X3+Math.cos(u.QC)*u.R3*.66:u.X3,lz=hc?u.Z3+Math.sin(u.QC)*u.R3*.66:u.Z3;
+       g.at(trs(lx,TOP,lz,-Math.atan2(u.Z3,u.X3)+Math.PI/2,(hc?.55:.9)*u.R3/2.2),()=>(PR[u.lm]||PR.pine)(g,cc))}
       const n=Math.round(8+u.R3*4),GK=['tuft','tuft','stone','flower'];for(let k=0;k<n;k++){const a=rr()*6.2832,d=u.R3*(.2+rr()*.66);if(u.N3.some(nd=>Math.hypot(nd.x-u.X3-Math.cos(a)*d,nd.z-u.Z3-Math.sin(a)*d)<.55))continue;put(g,GK[Math.floor(rr()*GK.length)],cc,u.X3+Math.cos(a)*d,u.Z3+Math.sin(a)*d,rr()*6.28,(.5+rr()*.3)*Math.min(1,u.R3/1.9))}
       {const kit2=ENV[r.id]||r.gl,d=u.R3*.58,sc=.62*Math.min(1.15,u.R3/2.1),dot=(x,z)=>g.ball(x,TOP+.05,z,.065,WHITE,.9,5,3);
-        u.N3.forEach((nd,k)=>{pad(g,nd.x,nd.z,nd.on,cc);const t=u.lv[k],key=/統整/.test(t)?'book':/愛閱讀/.test(t)?'lantern':kit2[(k+ui*2)%kit2.length];
+        u.N3.forEach((nd,k)=>{if(nd.core){corePad(g,nd.x,nd.z,u.chest?2:u.open?1:0,cc);return}pad(g,nd.x,nd.z,nd.on,cc);const t=u.lv[k],key=/統整/.test(t)?'book':/愛閱讀/.test(t)?'lantern':kit2[(k+ui*2)%kit2.length];
           put(g,key,cc,u.X3+Math.cos(nd.q)*u.R3*.82,u.Z3+Math.sin(nd.q)*u.R3*.82,rr()*6.28,sc);
-          if(k){const q0=u.N3[k-1].q,m=Math.max(2,Math.round((nd.q-q0)*d/.3));for(let i=1;i<m;i++){const q=q0+(nd.q-q0)*i/m,x=u.X3+Math.cos(q)*d,z=u.Z3+Math.sin(q)*d;if(Math.hypot(x-nd.x,z-nd.z)>.5&&Math.hypot(x-u.N3[k-1].x,z-u.N3[k-1].z)>.5)dot(x,z)}}});
+          if(k&&!u.N3[k-1].core){const q0=u.N3[k-1].q,m=Math.max(2,Math.round((nd.q-q0)*d/.3));for(let i=1;i<m;i++){const q=q0+(nd.q-q0)*i/m,x=u.X3+Math.cos(q)*d,z=u.Z3+Math.sin(q)*d;if(Math.hypot(x-nd.x,z-nd.z)>.5&&Math.hypot(x-u.N3[k-1].x,z-u.N3[k-1].z)>.5)dot(x,z)}}});
         const n0=u.N3[0];if(n0){const qe=n0.q-.55;for(let i=0;i<3;i++){const f=i/3;dot(u.X3+Math.cos(qe)*u.R3*.9*(1-f)+(n0.x-u.X3)*f,u.Z3+Math.sin(qe)*u.R3*.9*(1-f)+(n0.z-u.Z3)*f)}
-          const qc=n0.q-1.0;put(g,'chest',cc,u.X3+Math.cos(qc)*d,u.Z3+Math.sin(qc)*d,-qc+Math.PI/2,.75*Math.min(1.1,u.R3/2.1))}}
+          const cp=chestPos(u);put(g,'chest',cc,cp[0],cp[1],-u.QC+Math.PI/2,.75*Math.min(1.1,u.R3/2.1))}}
       if(u.E3)examFlag(g,u.X3,u.Z3,u.R3)});
     {const er=rng(ri*991+7),kit=ENV[r.id]||r.gl,dec=DEC[r.id],bk=BACK[r.id]||r.gl;
       for(let ia=0;ia<7;ia++)for(let ir=0;ir<4;ir++){if(er()<.12)continue;const rad=9.4+(ir+.15+er()*.7)/4*11.8,dt=((ia+.15+er()*.7)/7-.5)*(SW-.45),t=r.a3+dt,x=Math.cos(t)*rad,z=Math.sin(t)*rad;
@@ -369,8 +378,8 @@ function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單�
     Object.values(grp).forEach(us=>{const x=us.reduce((s,u)=>s+u.X3,0)/us.length,z=us.reduce((s,u)=>s+u.Z3,0)/us.length,d=Math.hypot(x,z)||1,R=Math.max(...us.map(u=>u.R3))+1.4,k=(d<14?d-R:d+R)/d; /* 內圈往皇城側、外圈往外側，避開另一圈的標籤 */
       add('unit',{r:r.id,p:[x*k,TOP+.4,z*k]},us[0].ul,'pu',()=>go({k:'region',r:r.id})).style.background=UC[(us[0].uno-1)%UC.length]});
     r.units.forEach((u,ui)=>{add('isl',{r:r.id,u:ui,p:[u.X3,TOP+2.3*u.R3/2.2+1+(r.units.length>6&&ui%2?1.5:0),u.Z3]},`${u.un}${r.sp3?(u.E3?'<em>已考</em>':'<em class="now">本次</em>'):''}<small>${r.lock?u.u:u.done+'／'+u.total}</small>`,'pi'+(r.lock?' lk':''),()=>r.lock?go({k:'region',r:r.id}):go({k:'island',r:r.id,u:ui}));
-      if(u.N3[0]){const qc=u.N3[0].q-1,d=u.R3*.58,open=u.chest;add('chest',{r:r.id,u:ui,p:[u.X3+Math.cos(qc)*d,TOP+.6,u.Z3+Math.sin(qc)*d]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
-      u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+.7,nd.z]},`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
+      if(u.N3[0]){const cp=chestPos(u),open=u.chest;add('chest',{r:r.id,u:ui,p:[cp[0],TOP+.6,cp[1]]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
+      u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+(nd.core?1.1:.7),nd.z]},nd.core?`${u.open?'💠':'🔒'} 島心試煉${u.open?'':'<small>還差 '+u.left+' 關</small>'}`:`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.core?' core'+(u.open?'':' lk'):'')+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
   PINS.forEach(p=>{if(p.k!=='isl')return;const u=VR.find(r=>r.id===p.r).units[p.u];if(u.uno){p.el.style.borderColor=UC[(u.uno-1)%UC.length];p.el.style.borderWidth='3px'}});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
 function updatePins(){const v=view,vis=[];for(const p of PINS){let show=false;

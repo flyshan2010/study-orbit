@@ -25,7 +25,7 @@ const API={url:'',dev:'',q:[],mid:{},busy:false,timer:null,fails:0,err:'',online
     if(r.relogin){this.err='登入過期了，請重新登入（還沒上傳的會留著）';LS.del('so-auth');APP.me.token='';APP.relogin=true;acctUI();return'stop'}
     if(r.paused){APP.paused=true;this.err=r.error||'自學星圖暫停中';acctUI();return'stop'}
     if(r.retry)return'retry';this.err=r.error||'上傳失敗';return'retry'},
-  setMe(r){if(!APP.me)return;if(r.today&&Array.isArray(r.today.src))APP.me.today={done:r.today.src.slice()};if(typeof r.streak==='number')APP.me.streak=r.streak},
+  setMe(r){if(!APP.me)return;if(r.today&&Array.isArray(r.today.src))APP.me.today={done:r.today.src.slice()};if(typeof r.streak==='number')APP.me.streak=r.streak;if(Array.isArray(r.days))APP.me.days=r.days.slice()}, /* v2.26 起代理回 days（本週七格） */
 
   /* ---- 登入／登出 ---- */
   async login(seat,code){if(!this.url)return'現在連不到自學星圖的伺服器，只能試玩。';

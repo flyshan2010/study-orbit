@@ -98,3 +98,13 @@ test("排行榜追趕說法", () => {
   assert.equal(catchUpText("progress", 2), "再完成 2 關就追平前一名");
   assert.equal(catchUpText("weekly", null), "");
 });
+
+test("P3 §3.1 虛擬島心接續：題目來自本島各關、依出題順序排第 1～7 格", () => {
+  const qs = [1, 2, 3, 4, 5, 6, 7].flatMap((i) => [{ id: "A" + i, level: "b-1-" + (i % 3 + 1), slot: i, span: 1 }, { id: "B" + i, level: "b-1-" + (i % 3 + 1), slot: i, span: 1 }]);
+  const mid = { k: "1-0", i: 2, res: "gg.....", q: qs.filter((q) => q.id[0] === "A").flatMap((q) => [q.id, "B" + q.id.slice(1)]), t: 1 };
+  const r = resumeOf(mid, qs, "b-1-0", ["b-1-1", "b-1-2", "b-1-3"]);
+  assert.equal(r.plan.length, 7);
+  assert.deepEqual(r.plan.map((x) => x.slots[0]), [1, 2, 3, 4, 5, 6, 7]);
+  assert.equal(r.n, 2);
+  assert.equal(resumeOf(mid, qs, "b-1-0", ["b-1-1"]), null, "題目不在本島＝從頭開始");
+});

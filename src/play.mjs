@@ -23,6 +23,41 @@ export function planRound(questions, level, rand = Math.random) {
   });
 }
 
+/**
+ * P3 §3.1 虛擬島心（數學、社會）排 7 格：不另命題，從本島各關題池抽。
+ *   1. 先每關各 1 格（基礎或進階，關與關輪流：第 1 關基礎、第 2 關進階…），
+ *   2. 再輪流補各關的應用格，補滿 7 格（還不夠才補其餘格）；
+ *   3. 每格從那一格的 2 道變式隨機抽 1 道、另一道留給再挑戰；同一回合不出同一格（＝不重題）。
+ * 配合題（占多格）不進島心：島心一格一盞燈。圖表題組每題都帶自己的圖，可以單獨出。
+ * @param core islandCore() 的結果（levels＝完整關卡代碼）；slotsOf(關卡代碼)＝該關 7 格的「基礎／進階／應用」
+ * @returns {{slots:number[], q:object, alt:object|null, kind:string}[]}
+ */
+export function planCore(questions, core, slotsOf, rand = Math.random) {
+  const pickOne = (a) => a[Math.floor(rand() * a.length)];
+  const cells = core.levels.map((lv) => {
+    const kinds = slotsOf(lv) || [], by = new Map();
+    questions.filter((q) => q.level === lv && !(Number(q.span) > 1)).forEach((q) => {
+      const k = Number(q.slot); if (!by.has(k)) by.set(k, []); by.get(k).push(q); });
+    return [...by].sort((a, b) => a[0] - b[0]).map(([slot, qs]) => ({ lv, slot, kind: kinds[slot - 1] || "基礎", qs }));
+  });
+  const used = new Set(), picks = [], free = (c) => !used.has(c.lv + "#" + c.slot);
+  const take = (c) => { used.add(c.lv + "#" + c.slot); picks.push(c); };
+  cells.forEach((cs, i) => {
+    if (picks.length >= 7) return;
+    const want = i % 2 ? "進階" : "基礎", f = cs.filter(free);
+    const p = f.filter((c) => c.kind === want), p2 = f.filter((c) => c.kind !== "應用");
+    const pool = p.length ? p : p2.length ? p2 : f;
+    if (pool.length) take(pickOne(pool));
+  });
+  const fill = (ok) => { for (let more = true; more && picks.length < 7;) { more = false;
+    for (const cs of cells) { if (picks.length >= 7) break; const f = cs.filter((c) => free(c) && ok(c)); if (f.length) { take(pickOne(f)); more = true; } } } };
+  fill((c) => c.kind === "應用"); fill(() => true);
+  return picks.map((c, i) => {
+    const qs = [...c.qs].sort((a, b) => a.id.localeCompare(b.id)), j = qs.length > 1 ? Math.floor(rand() * qs.length) : 0;
+    return { slots: [i + 1], q: qs[j], alt: qs.find((_, k) => k !== j) ?? null, kind: c.kind };
+  });
+}
+
 /** 配合題答案字串 "1B,2D,3A,4C" ↔ {1:"B",2:"D",…} */
 export function parsePairs(s) {
   const o = {};

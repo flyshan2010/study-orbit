@@ -24,13 +24,14 @@ function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.af
 function modeChips(){return APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
 function intro(){const best=APP.best(LV);
   S.innerHTML=`<div class="intro"><button class="ghost" data-act="quit">← 回到地圖</button><div class="where">${LV.crumb}</div><h2>${LV.title}</h2>
-   <div class="owl">${OWL}</div><div class="say">課後練習：島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
+   <div class="owl">${OWL}</div><div class="say">${LV.isCore?'💠 島心試煉：這座島各關的重點都在這裡！<br>7 盞燈全部金燈，就能打開寶箱。':'課後練習：島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。'}</div>
    <div class="chips"><span class="chip">${best?'最高紀錄 '+starStr(best):'第一次挑戰'}</span>${modeChips()}</div>
    <button class="big" data-act="start">${LV.resume?'繼續闖關！':'出發點燈！'}</button></div>`}
 
 /* ---------- 一回合 ---------- */
 /* 開一回合；LV.resume＝換載具接續（resumeOf 還原的題目與燈），等再挑戰的格子直接進再挑戰 */
-function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:planRound(LV.questions,LV.code);
+function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:LV.coreLv?planCore(LV.questions,{levels:LV.coreLv},LV.slotsOf):planRound(LV.questions,LV.code);
+  if(LV.coreLv)LV.slots=PL.map(it=>it.kind||(LV.slotsOf(it.q.level)||[])[it.q.slot-1]||'基礎'); /* 虛擬島心：燈形照題目原本那一格 */
   st={n:rs?rs.n:0,res:rs?rs.res.slice():Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ();
   if(rs&&rs.pend.length&&st.it){st.wrongSlots=st.it.slots.map((s,i)=>rs.pend.includes(s)?i:-1).filter(i=>i>=0);retry()}}
 /* 每答完一次就記 mid（pend＝第一次答錯、等再挑戰的格子）；只有登入時才送 */
@@ -135,7 +136,7 @@ function result(){const g=st.res.filter(r=>r==='gold').length,sv=st.res.filter(r
   S.innerHTML=`<div class="res"><h2>${sc===3?(g===7?'全對！太厲害了！':'燈籠全亮了！'):sc?'過關！':'再試一次就能過關'}</h2>
    <div class="stars">${[0,1,2].map(i=>`<span class="${i<sc?'on':''}" style="animation-delay:${.2+i*.25}s">★</span>`).join('')}</div>
    <div class="lans" style="flex:none">${st.res.map(x=>`<div class="lan ${x}"></div>`).join('')}</div>
-   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
+   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${r.chestNew?'<span class="chip">🎁 寶箱打開了！</span>':LV.isCore&&!r.chest?'<span class="chip">💠 島心七盞全金，就能打開寶箱</span>':g===7?'<span class="chip">🌟 這一關七盞全金</span>':''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
    ${story?`<div id="myst">${r.storyNew?`<p style="margin:4px 0 8px;font-weight:800">選一張翻開，看看這一關的故事卡</p><div class="myst">${[0,1,2].map(i=>`<button class="mc" data-act="flip" aria-label="第 ${i+1} 張神祕卡">？</button>`).join('')}</div>`:`<div class="story">📖 ${esc(story.title)}<br><small>這張故事卡已經收集過了</small></div>`}</div>`:''}
    <div class="row"><button class="big" data-act="start">${sc===3?'再玩一次':'再挑戰（題目不同）'}</button><button class="ghost" data-act="quit">← 回到地圖</button></div></div>`}
 function flip(){const s=LV.story;$('#myst').innerHTML=`<div class="story">📖 <b>${esc(s.title)}</b><br>${esc(s.body)}<br><small>已收進故事卡圖鑑</small></div>`;sfx('card')}

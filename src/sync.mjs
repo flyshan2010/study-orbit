@@ -47,15 +47,17 @@ export function midOf(key, plan, n, res, pend = [], now = Date.now()) {
  * 把 mid 還原成可以接著玩的回合；題目對不上（題本改版）回 null＝從頭開始。
  * 回 {plan, n, res, pend}：n＝第一個還沒定案的項目；pend＝那一項裡等再挑戰的格子
  */
-export function resumeOf(mid, questions, level) {
+export function resumeOf(mid, questions, level, coreLevels = null) {
   if (!mid || !Array.isArray(mid.q) || typeof mid.res !== "string" || mid.res.length !== 7) return null;
-  const byId = new Map(questions.filter((q) => q.level === level).map((q) => [q.id, q]));
+  // P3 §3.1 虛擬島心：題目來自本島各關（coreLevels），一題一格、依出題順序排在第 1～7 格
+  const from = coreLevels ? (q) => coreLevels.includes(q.level) : (q) => q.level === level;
+  const byId = new Map(questions.filter(from).map((q) => [q.id, q]));
   const plan = [];
   for (let i = 0; i < mid.q.length; i += 2) {
     const q = byId.get(mid.q[i]);
     if (!q) return null;
-    const span = Math.max(1, Number(q.span) || 1);
-    plan.push({ slots: Array.from({ length: span }, (_, k) => q.slot + k), q, alt: byId.get(mid.q[i + 1]) || null });
+    const span = coreLevels ? 1 : Math.max(1, Number(q.span) || 1), s0 = coreLevels ? plan.length + 1 : Number(q.slot);
+    plan.push({ slots: Array.from({ length: span }, (_, k) => s0 + k), q, alt: byId.get(mid.q[i + 1]) || null });
   }
   const slots = plan.flatMap((x) => x.slots);
   if (slots.join() !== "1,2,3,4,5,6,7") return null;

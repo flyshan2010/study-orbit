@@ -392,6 +392,11 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 .tips{padding-left:0;list-style:none}.tips li{background:#0d1436;border-left:4px solid var(--gold);border-radius:8px;padding:8px 10px;margin:6px 0;line-height:1.5}
 .more{margin-top:12px}.more>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;color:var(--mut)}
 @media(max-width:600px){#sz{top:10px;bottom:auto}}
+
+/* P3 第②步：島心（星座圖菱形、地圖名牌） */
+.dot.dia{border-radius:2px;transform:rotate(45deg) scale(.92);background:#b9a6ff40;border-color:#b9a6ff}.dot.dia.lk{background:#ffffff14;border-color:#ffffff55;border-style:dashed}
+.dot.dia.s1{background:#c98b4a;border-color:#b9a6ff}.dot.dia.s2{background:#cfd6ea;border-color:#b9a6ff}.dot.dia.s3{background:var(--gold);border-color:#b9a6ff}
+.pin.pl.core{background:#e7defff2;border-color:#8f7be0;font-weight:800}.pin.pl.core.lk{background:#e3e6f2f2;border-color:#9aa3c4}.pin.pl.core.on{background:#ffe9a8f2}
 </style>
 </head>
 <body>
@@ -416,7 +421,7 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 </main>
 <div id="g8play" class="g8" hidden><div class="stage"><div id="scene" aria-live="polite"></div></div></div>
 <script>/* ===== rules.mjs ===== */
-const {FAST_SEC,isFast,slotLight,nextStreak,stars,allGold,passed,applyRound,chestOpen,totals,weekStart,addWeekly,rank,starsToCatchUp,encodeDay,decodeDay,encodeBsStr,decodeBsStr,decodeSave,encodeSave,season,solarTermDay,solarTerm}=(()=>{
+const {FAST_SEC,isFast,slotLight,nextStreak,stars,allGold,passed,applyRound,CORE_RE,islandCore,coreLeft,coreOpen,chestOpen,weekDays,totals,weekStart,addWeekly,rank,starsToCatchUp,encodeDay,decodeDay,encodeBsStr,decodeBsStr,decodeSave,encodeSave,season,solarTermDay,solarTerm}=(()=>{
 // ⚠️ 自動複製，勿手改。正本：class-website/scripts/classos/study-orbit/rules.mjs（改正本後跑 study-orbit/build.py）
 // 自學星圖闖關規則（規格正本：ClassOS_v3.5_藍圖/SPEC_自學星圖_P1資料模型.md §5.1–5.3）
 // 全部是純函式；P2 前台與代理共用這一支，不各自重寫（U83）。
@@ -469,9 +474,37 @@ function applyRound(record, gold, silver) {
   };
 }
 
-/** 寶箱：一座島每一關「曾經七盞全金」都是 1 才開（不必同一次完成） */
-function chestOpen(islandLevelCodes, lv) {
-  return islandLevelCodes.length > 0 && islandLevelCodes.every((c) => lv[c]?.[1] === 1);
+/* ---------- P3 §1：島心試煉與寶箱（第②步） ----------
+   island＝{id, levels:[{code, name}]}（code 可以是完整代碼或省略題本的短鍵，回傳同一種）；lv＝存檔的關卡紀錄 */
+const CORE_RE = /評量複習$/;
+/** 島心：名稱以「評量複習」結尾的那一關（國語）；沒有就是虛擬島心 <島>-0（數學、社會，從各關題池抽題） */
+function islandCore(island) {
+  const lvs = (island && island.levels) || [];
+  const i = lvs.findIndex((l) => CORE_RE.test(String(l.name || "")));
+  if (i >= 0) return { key: lvs[i].code, levels: lvs.filter((_, k) => k !== i).map((l) => l.code), virtual: false };
+  const all = lvs.map((l) => l.code);
+  return { key: (all.length ? all[0].replace(/-[^-]+$/, "") : String(island && island.id)) + "-0", levels: all, virtual: true };
+}
+/** 島心開放前還差幾關（各關最高星等 ≥1 才算過） */
+function coreLeft(island, lv) {
+  return islandCore(island).levels.filter((k) => !(((lv || {})[k] || [0])[0] >= 1)).length;
+}
+/** 島心開放＝其餘每一關都 ≥1 星；島心已經有紀錄的照樣開（不倒退） */
+function coreOpen(island, lv) {
+  const c = islandCore(island);
+  if ((lv || {})[c.key]) return true;
+  return c.levels.length > 0 && coreLeft(island, lv) === 0;
+}
+/** 寶箱：島心曾經七盞全金，或（舊條件）島上每一關都曾經全金——任一成立就開（P3 §11 第 2 題 A，不寫遷移） */
+function chestOpen(island, lv) {
+  const c = islandCore(island), L = lv || {}, all = ((island && island.levels) || []).map((l) => l.code);
+  if ((L[c.key] || [])[1] === 1) return true;
+  return all.length > 0 && all.every((k) => (L[k] || [])[1] === 1);
+}
+/** 本週一～日哪幾天有自學：days＝日期字串陣列（YYYY-MM-DD），回 7 個 true／false */
+function weekDays(days, today) {
+  const set = new Set(days || []), ws = Date.parse(weekStart(`${today}T12:00:00+08:00`) + "T00:00:00Z");
+  return Array.from({ length: 7 }, (_, i) => set.has(new Date(ws + i * 864e5).toISOString().slice(0, 10)));
 }
 
 /** §5.3 星數＝各關最高星等加總；完成關數＝最高星等 ≥1 的關數 */
@@ -636,9 +669,9 @@ function solarTerm(ymd) {
   return SOLAR_NAMES[(i + 24) % 24]; // 1 月 5 日前＝前一年的冬至
 }
 
-return{FAST_SEC,isFast,slotLight,nextStreak,stars,allGold,passed,applyRound,chestOpen,totals,weekStart,addWeekly,rank,starsToCatchUp,encodeDay,decodeDay,encodeBsStr,decodeBsStr,decodeSave,encodeSave,season,solarTermDay,solarTerm}})();
+return{FAST_SEC,isFast,slotLight,nextStreak,stars,allGold,passed,applyRound,CORE_RE,islandCore,coreLeft,coreOpen,chestOpen,weekDays,totals,weekStart,addWeekly,rank,starsToCatchUp,encodeDay,decodeDay,encodeBsStr,decodeBsStr,decodeSave,encodeSave,season,solarTermDay,solarTerm}})();
 /* ===== play.mjs ===== */
-const {planRound,parsePairs,pairsStr,judgeChoice,judgeMatch,cardsFor,cardQuestion,dayDiff,deckOf,cardAfter}=(()=>{
+const {planRound,planCore,parsePairs,pairsStr,judgeChoice,judgeMatch,cardsFor,cardQuestion,dayDiff,deckOf,cardAfter}=(()=>{
 // 自學星圖前台：出題與判題（純函式）。node 測試直接 import；build.py 去掉 export 併進頁面。
 // 規格：P1 SPEC §5（一格最多兩次、再挑戰換同一格的另一題）、§9 第 4 項（配合題一對一盞燈）、
 //       PLAN §一之一（閱讀題組：同一組小題用同一篇；兩組擇一）。燈色與星等一律用 rules.mjs。
@@ -661,6 +694,41 @@ function planRound(questions, level, rand = Math.random) {
     c.forEach((q, k) => { if (q.group) (k === i ? chosen : rejected).add(q.group); });
     const q = c[i], span = Math.max(1, Number(q.span) || 1);
     return { slots: Array.from({ length: span }, (_, k) => s + k), q, alt: c.find((_, k) => k !== i) ?? null };
+  });
+}
+
+/**
+ * P3 §3.1 虛擬島心（數學、社會）排 7 格：不另命題，從本島各關題池抽。
+ *   1. 先每關各 1 格（基礎或進階，關與關輪流：第 1 關基礎、第 2 關進階…），
+ *   2. 再輪流補各關的應用格，補滿 7 格（還不夠才補其餘格）；
+ *   3. 每格從那一格的 2 道變式隨機抽 1 道、另一道留給再挑戰；同一回合不出同一格（＝不重題）。
+ * 配合題（占多格）不進島心：島心一格一盞燈。圖表題組每題都帶自己的圖，可以單獨出。
+ * @param core islandCore() 的結果（levels＝完整關卡代碼）；slotsOf(關卡代碼)＝該關 7 格的「基礎／進階／應用」
+ * @returns {{slots:number[], q:object, alt:object|null, kind:string}[]}
+ */
+function planCore(questions, core, slotsOf, rand = Math.random) {
+  const pickOne = (a) => a[Math.floor(rand() * a.length)];
+  const cells = core.levels.map((lv) => {
+    const kinds = slotsOf(lv) || [], by = new Map();
+    questions.filter((q) => q.level === lv && !(Number(q.span) > 1)).forEach((q) => {
+      const k = Number(q.slot); if (!by.has(k)) by.set(k, []); by.get(k).push(q); });
+    return [...by].sort((a, b) => a[0] - b[0]).map(([slot, qs]) => ({ lv, slot, kind: kinds[slot - 1] || "基礎", qs }));
+  });
+  const used = new Set(), picks = [], free = (c) => !used.has(c.lv + "#" + c.slot);
+  const take = (c) => { used.add(c.lv + "#" + c.slot); picks.push(c); };
+  cells.forEach((cs, i) => {
+    if (picks.length >= 7) return;
+    const want = i % 2 ? "進階" : "基礎", f = cs.filter(free);
+    const p = f.filter((c) => c.kind === want), p2 = f.filter((c) => c.kind !== "應用");
+    const pool = p.length ? p : p2.length ? p2 : f;
+    if (pool.length) take(pickOne(pool));
+  });
+  const fill = (ok) => { for (let more = true; more && picks.length < 7;) { more = false;
+    for (const cs of cells) { if (picks.length >= 7) break; const f = cs.filter((c) => free(c) && ok(c)); if (f.length) { take(pickOne(f)); more = true; } } } };
+  fill((c) => c.kind === "應用"); fill(() => true);
+  return picks.map((c, i) => {
+    const qs = [...c.qs].sort((a, b) => a.id.localeCompare(b.id)), j = qs.length > 1 ? Math.floor(rand() * qs.length) : 0;
+    return { slots: [i + 1], q: qs[j], alt: qs.find((_, k) => k !== j) ?? null, kind: c.kind };
   });
 }
 
@@ -724,7 +792,7 @@ function cardAfter(cur, ok, today) {
   return cur;
 }
 
-return{planRound,parsePairs,pairsStr,judgeChoice,judgeMatch,cardsFor,cardQuestion,dayDiff,deckOf,cardAfter}})();
+return{planRound,planCore,parsePairs,pairsStr,judgeChoice,judgeMatch,cardsFor,cardQuestion,dayDiff,deckOf,cardAfter}})();
 /* ===== sync.mjs ===== */
 const {PUSH_MAX,takeBatch,dropUpTo,booksIn,backoff,midOf,resumeOf,midSlot,nextLevelKey,taskSrc,catchUpText}=(()=>{
 // 自學星圖前台：接代理用的純函式（node 測試直接 import；build.py 去掉 export 併進頁面）。
@@ -776,15 +844,17 @@ function midOf(key, plan, n, res, pend = [], now = Date.now()) {
  * 把 mid 還原成可以接著玩的回合；題目對不上（題本改版）回 null＝從頭開始。
  * 回 {plan, n, res, pend}：n＝第一個還沒定案的項目；pend＝那一項裡等再挑戰的格子
  */
-function resumeOf(mid, questions, level) {
+function resumeOf(mid, questions, level, coreLevels = null) {
   if (!mid || !Array.isArray(mid.q) || typeof mid.res !== "string" || mid.res.length !== 7) return null;
-  const byId = new Map(questions.filter((q) => q.level === level).map((q) => [q.id, q]));
+  // P3 §3.1 虛擬島心：題目來自本島各關（coreLevels），一題一格、依出題順序排在第 1～7 格
+  const from = coreLevels ? (q) => coreLevels.includes(q.level) : (q) => q.level === level;
+  const byId = new Map(questions.filter(from).map((q) => [q.id, q]));
   const plan = [];
   for (let i = 0; i < mid.q.length; i += 2) {
     const q = byId.get(mid.q[i]);
     if (!q) return null;
-    const span = Math.max(1, Number(q.span) || 1);
-    plan.push({ slots: Array.from({ length: span }, (_, k) => q.slot + k), q, alt: byId.get(mid.q[i + 1]) || null });
+    const span = coreLevels ? 1 : Math.max(1, Number(q.span) || 1), s0 = coreLevels ? plan.length + 1 : Number(q.slot);
+    plan.push({ slots: Array.from({ length: span }, (_, k) => s0 + k), q, alt: byId.get(mid.q[i + 1]) || null });
   }
   const slots = plan.flatMap((x) => x.slots);
   if (slots.join() !== "1,2,3,4,5,6,7") return null;
@@ -1045,17 +1115,20 @@ function buildRegions(){
     const islands=(b.structure&&b.structure.islands)||[];
     /* 國語：一座島＝一課，島名＝單元名；單元序號讀題本 islands[].unit，沒填就依島名出現順序推（SPEC §7 地圖命名規則） */
     const unames=[...new Set(islands.map(x=>x.name))],uno=isl=>subj==='國語'?(Number(isl.unit)||unames.indexOf(isl.name)+1):0;
-    const units=islands.map((isl,i)=>{const lvs=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+    const units=islands.map((isl,i)=>{const real=isl.levels||[],no=uno(isl),ul=no?esc(zhNum(no)+'、'+isl.name):'';
+      /* P3 §3.1 島心：國語＝第 5 關「評量複習」原地升格；數學社會＝虛擬島心 <島>-0（排在各關之後，從各關題池抽題） */
+      const core=islandCore(isl),lvs=core.virtual&&real.length?[...real,{code:core.key,name:'島心試煉',exam:'',slots:[]}]:real,ci=lvs.findIndex(l=>l.code===core.key);
       return{n:esc(isl.name),un:esc(unitName(subj,isl)),uno:no,ul,u:ul||'第 '+esc(isl.id)+' 單元',lm:T.lm[i%T.lm.length],
-        lv:lvs.map(l=>esc(l.name)),pin:lvs.map(l=>esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
+        lv:lvs.map(l=>esc(l.name)),pin:lvs.map((l,k)=>k===ci?'島心試煉':esc(String(l.name).split('・').pop())),codes:lvs.map(l=>l.code),
         keys:lvs.map(l=>shortKey(b.code,l.code)),exam:lvs.map(l=>l.exam||''),slots:lvs.map(l=>l.slots||[]),
-        ex:lvs.length>0&&lvs.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false}});
+        core:ci,virt:core.virtual,coreLv:core.levels,isl:{id:isl.id,levels:real.map(l=>({code:shortKey(b.code,l.code),name:l.name}))},
+        ex:real.length>0&&real.every(l=>DATA.examDone[l.exam]),best:[],on:[],done:0,total:lvs.length,chest:false,open:false,left:0}});
     return{id:T.id,name:esc(subj),subj,zone:T.zone,style:T.style,ang:T.ang,c:T.c,gl:T.gl,per:1,
       book:b.code,bookTitle:esc(b.title),units,done:0,total:units.reduce((a,u)=>a+u.total,0)}}).filter(Boolean)}
 /* save＝{題本代碼: decodeSave() 的形狀} */
 function applyProgress(R,save){R.forEach(r=>{const m=save[r.book]||{lv:{}};
   r.units.forEach(u=>{u.best=u.keys.map(k=>(m.lv[k]||[0])[0]);u.on=u.best.map(s=>s>=1);
-    u.done=u.on.filter(Boolean).length;u.chest=u.keys.length>0&&chestOpen(u.keys,m.lv)});
+    u.done=u.on.filter(Boolean).length;u.chest=chestOpen(u.isl,m.lv);u.open=coreOpen(u.isl,m.lv);u.left=coreLeft(u.isl,m.lv)});
   r.done=r.units.reduce((a,u)=>a+u.done,0)})}
 
 /* ===== map.js ===== */
@@ -1272,7 +1345,9 @@ VR.forEach((r,vi)=>{const n=r.units.length,a=Math.PI/2-vi*SW,ex=r.units.filter(u
   r.X3=Math.cos(a)*14.5;r.Z3=Math.sin(a)*14.5;
   r.units.forEach((u,i)=>{const row=i<inner?0:1,m=row?outer:inner,rad=row?17.6:11.3,f=m===2?.56:1,span=tot[row]-1,t=a+(m===1?0:(pos[i]/span-.5)*W*f),sp=m===1?9:rad*W*f/span;
     u.E3=split&&row===0;u.R3=Math.max(1.15,Math.min(2.6,sp*.43));u.X3=Math.cos(t)*rad;u.Z3=Math.sin(t)*rad;u.S3=r.ang+i*7.3;
-    u.N3=u.lv.map((_,k)=>{const q=Math.atan2(-u.Z3,-u.X3)+.55+(u.lv.length>1?k/(u.lv.length-1)*4.3:0),d=u.R3*.58;return{q,x:u.X3+Math.cos(q)*d,z:u.Z3+Math.sin(q)*d,on:!!u.on[k]}})})});
+    /* P3 §3.1 島心排在島中央；其餘各關沿弧線排；QC＝弧線缺口（朝皇城）的角度，地標移到那裡 */
+    {const q0=Math.atan2(-u.Z3,-u.X3)+.55,nn=u.lv.length-(u.core>=0?1:0);let j=0;u.QC=q0-1.0;
+     u.N3=u.lv.map((_,k)=>{if(k===u.core)return{q:u.QC,x:u.X3,z:u.Z3,on:!!u.on[k],core:1};const q=q0+(nn>1?j++/(nn-1)*4.3:0),d=u.R3*.58;return{q,x:u.X3+Math.cos(q)*d,z:u.Z3+Math.sin(q)*d,on:!!u.on[k]}})}})});
 /* 可愛風零件（都畫在原點、底面 y=0；c＝該區配色） */
 const PR={
   pine:(g,c)=>{g.cyl(0,0,0,.07,.06,.3,5,WOOD);g.cyl(0,.24,0,.36,0,.6,6,c.t1);g.cyl(0,.56,0,.26,0,.5,6,c.t2)},
@@ -1322,6 +1397,12 @@ function put(g,key,c,x,z,rot,s){g.at(trs(x,TOP,z,rot,s),()=>(PR[key]||PR.pine)(g
 /* 考過定期評量的島：靠皇城那一側插一面紅旗 */
 function examFlag(g,x,z,R){const d=Math.hypot(x,z),fx=x-x/d*R*.8,fz=z-z/d*R*.8;g.cyl(fx,TOP,fz,.05,.05,1.9,5,WHITE);for(const s of[1,-1])g.tri([fx,TOP+1.9,fz],[fx,TOP+1.25,fz],[fx+s*.001+.75,TOP+1.57,fz],RED,.5);g.tri([fx,TOP+1.9,fz],[fx+.75,TOP+1.57,fz],[fx,TOP+1.25,fz],RED,.5);g.ball(fx,TOP+1.98,fz,.09,GOLD,1,6,4)}
 /* 關卡圓台：過關＝金色，未過＝該區顏色；中間一圈白環 */
+/* 寶箱：有島心就擺在島心旁（朝皇城那側），沒有就沿用弧線缺口 */
+function chestPos(u){const k=u.core>=0?u.R3*.3:u.R3*.58;return[u.X3+Math.cos(u.QC)*k,u.Z3+Math.sin(u.QC)*k]}
+/* 島心台：大一號的石台＋菱形寶石；st＝0 未開放（灰）／1 開放（紫）／2 寶箱已開（金） */
+function corePad(g,x,z,st,c){const gem=st===2?GOLD:st===1?hex(0xb9a6ff):hex(0x8088a8),em=st?.6:.05;
+  g.cyl(x,TOP,z,.62,.5,.2,8,STONE,.05,Math.PI/8);g.cyl(x,TOP+.2,z,.4,.4,.03,8,WHITE,.9,Math.PI/8);
+  g.cyl(x,TOP+.25,z,0,.28,.34,4,gem,em,Math.PI/4);g.cyl(x,TOP+.59,z,.28,0,.34,4,gem,em,Math.PI/4)}
 function pad(g,x,z,on,c){const b=on?hex(0xf2b34c):c.t1;g.cyl(x,TOP,z,.42,.34,.15,12,b,on?.25:.05);g.cyl(x,TOP+.15,z,.26,.26,.02,12,WHITE,.9);g.cyl(x,TOP+.16,z,.17,.17,.02,12,b,on?.4:.1)}
 function lampPost(g,x,z,on,lock){g.cyl(x,TOP,z,.035,.035,.5,5,STONE);g.ball(x,TOP+.62,z,.15,lock?hex(0x8088a8):on?GOLD:WHITE,lock?0:on?1:.25,8,5)}
 /* 皇城：日式天守，塔頂就是原本的燈塔 */
@@ -1338,14 +1419,15 @@ function buildStatic(){const g=new Geo();g.at(trs(0,0,0,0,1.25,1.3,1.25),()=>bui
     const col=v=>r.lock?v.map(x=>x*.55+.2):v,cc={t1:col(c.t1),t2:col(c.t2),m1:col(c.m1)};
     r.units.forEach((u,ui)=>{const P=blob(u.R3,u.S3),rr=rng(ri*131+ui*17+3);
       g.slab(u.X3,u.Z3,P,-.5,1.12,.12,1.04,dark(sand,lk),dark(sand,lk));g.slab(u.X3,u.Z3,P,.12,1,TOP,.94,col(edge),col(land));
-      g.at(trs(u.X3,TOP,u.Z3,-Math.atan2(u.Z3,u.X3)+Math.PI/2,.9*u.R3/2.2),()=>(PR[u.lm]||PR.pine)(g,cc));
+      {const hc=u.core>=0,lx=hc?u.X3+Math.cos(u.QC)*u.R3*.66:u.X3,lz=hc?u.Z3+Math.sin(u.QC)*u.R3*.66:u.Z3;
+       g.at(trs(lx,TOP,lz,-Math.atan2(u.Z3,u.X3)+Math.PI/2,(hc?.55:.9)*u.R3/2.2),()=>(PR[u.lm]||PR.pine)(g,cc))}
       const n=Math.round(8+u.R3*4),GK=['tuft','tuft','stone','flower'];for(let k=0;k<n;k++){const a=rr()*6.2832,d=u.R3*(.2+rr()*.66);if(u.N3.some(nd=>Math.hypot(nd.x-u.X3-Math.cos(a)*d,nd.z-u.Z3-Math.sin(a)*d)<.55))continue;put(g,GK[Math.floor(rr()*GK.length)],cc,u.X3+Math.cos(a)*d,u.Z3+Math.sin(a)*d,rr()*6.28,(.5+rr()*.3)*Math.min(1,u.R3/1.9))}
       {const kit2=ENV[r.id]||r.gl,d=u.R3*.58,sc=.62*Math.min(1.15,u.R3/2.1),dot=(x,z)=>g.ball(x,TOP+.05,z,.065,WHITE,.9,5,3);
-        u.N3.forEach((nd,k)=>{pad(g,nd.x,nd.z,nd.on,cc);const t=u.lv[k],key=/統整/.test(t)?'book':/愛閱讀/.test(t)?'lantern':kit2[(k+ui*2)%kit2.length];
+        u.N3.forEach((nd,k)=>{if(nd.core){corePad(g,nd.x,nd.z,u.chest?2:u.open?1:0,cc);return}pad(g,nd.x,nd.z,nd.on,cc);const t=u.lv[k],key=/統整/.test(t)?'book':/愛閱讀/.test(t)?'lantern':kit2[(k+ui*2)%kit2.length];
           put(g,key,cc,u.X3+Math.cos(nd.q)*u.R3*.82,u.Z3+Math.sin(nd.q)*u.R3*.82,rr()*6.28,sc);
-          if(k){const q0=u.N3[k-1].q,m=Math.max(2,Math.round((nd.q-q0)*d/.3));for(let i=1;i<m;i++){const q=q0+(nd.q-q0)*i/m,x=u.X3+Math.cos(q)*d,z=u.Z3+Math.sin(q)*d;if(Math.hypot(x-nd.x,z-nd.z)>.5&&Math.hypot(x-u.N3[k-1].x,z-u.N3[k-1].z)>.5)dot(x,z)}}});
+          if(k&&!u.N3[k-1].core){const q0=u.N3[k-1].q,m=Math.max(2,Math.round((nd.q-q0)*d/.3));for(let i=1;i<m;i++){const q=q0+(nd.q-q0)*i/m,x=u.X3+Math.cos(q)*d,z=u.Z3+Math.sin(q)*d;if(Math.hypot(x-nd.x,z-nd.z)>.5&&Math.hypot(x-u.N3[k-1].x,z-u.N3[k-1].z)>.5)dot(x,z)}}});
         const n0=u.N3[0];if(n0){const qe=n0.q-.55;for(let i=0;i<3;i++){const f=i/3;dot(u.X3+Math.cos(qe)*u.R3*.9*(1-f)+(n0.x-u.X3)*f,u.Z3+Math.sin(qe)*u.R3*.9*(1-f)+(n0.z-u.Z3)*f)}
-          const qc=n0.q-1.0;put(g,'chest',cc,u.X3+Math.cos(qc)*d,u.Z3+Math.sin(qc)*d,-qc+Math.PI/2,.75*Math.min(1.1,u.R3/2.1))}}
+          const cp=chestPos(u);put(g,'chest',cc,cp[0],cp[1],-u.QC+Math.PI/2,.75*Math.min(1.1,u.R3/2.1))}}
       if(u.E3)examFlag(g,u.X3,u.Z3,u.R3)});
     {const er=rng(ri*991+7),kit=ENV[r.id]||r.gl,dec=DEC[r.id],bk=BACK[r.id]||r.gl;
       for(let ia=0;ia<7;ia++)for(let ir=0;ir<4;ir++){if(er()<.12)continue;const rad=9.4+(ir+.15+er()*.7)/4*11.8,dt=((ia+.15+er()*.7)/7-.5)*(SW-.45),t=r.a3+dt,x=Math.cos(t)*rad,z=Math.sin(t)*rad;
@@ -1430,8 +1512,8 @@ function buildPins(){const UC=['#e9b87a','#8fc7a8','#9fb3ea','#e6a0c4'];/* 單�
     Object.values(grp).forEach(us=>{const x=us.reduce((s,u)=>s+u.X3,0)/us.length,z=us.reduce((s,u)=>s+u.Z3,0)/us.length,d=Math.hypot(x,z)||1,R=Math.max(...us.map(u=>u.R3))+1.4,k=(d<14?d-R:d+R)/d; /* 內圈往皇城側、外圈往外側，避開另一圈的標籤 */
       add('unit',{r:r.id,p:[x*k,TOP+.4,z*k]},us[0].ul,'pu',()=>go({k:'region',r:r.id})).style.background=UC[(us[0].uno-1)%UC.length]});
     r.units.forEach((u,ui)=>{add('isl',{r:r.id,u:ui,p:[u.X3,TOP+2.3*u.R3/2.2+1+(r.units.length>6&&ui%2?1.5:0),u.Z3]},`${u.un}${r.sp3?(u.E3?'<em>已考</em>':'<em class="now">本次</em>'):''}<small>${r.lock?u.u:u.done+'／'+u.total}</small>`,'pi'+(r.lock?' lk':''),()=>r.lock?go({k:'region',r:r.id}):go({k:'island',r:r.id,u:ui}));
-      if(u.N3[0]){const qc=u.N3[0].q-1,d=u.R3*.58,open=u.chest;add('chest',{r:r.id,u:ui,p:[u.X3+Math.cos(qc)*d,TOP+.6,u.Z3+Math.sin(qc)*d]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
-      u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+.7,nd.z]},`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
+      if(u.N3[0]){const cp=chestPos(u),open=u.chest;add('chest',{r:r.id,u:ui,p:[cp[0],TOP+.6,cp[1]]},open?'🎁 寶箱打開了':'🔒 寶箱','pl ch'+(open?' on':''),()=>pChest(r,ui))}
+      u.N3.forEach((nd,li)=>add('lv',{r:r.id,u:ui,l:li,p:[nd.x,TOP+(nd.core?1.1:.7),nd.z]},nd.core?`${u.open?'💠':'🔒'} 島心試煉${u.open?'':'<small>還差 '+u.left+' 關</small>'}`:`<span class="no">${u.keys[li]}</span>${u.pin[li]}`,'pl'+(nd.core?' core'+(u.open?'':' lk'):'')+(nd.on?' on':''),()=>go({k:'level',r:r.id,u:ui,l:li})))})});
   PINS.forEach(p=>{if(p.k!=='isl')return;const u=VR.find(r=>r.id===p.r).units[p.u];if(u.uno){p.el.style.borderColor=UC[(u.uno-1)%UC.length];p.el.style.borderWidth='3px'}});
   nextU=null;for(const r of R){if(r.lock)continue;const u=r.units.find(u=>u.done<u.total);if(u){const nd=u.N3.find(n=>!n.on)||u.N3[0];nextU={x:nd.x+.3,z:nd.z+.3};break}}}
 function updatePins(){const v=view,vis=[];for(const p of PINS){let show=false;
@@ -1479,13 +1561,14 @@ function close(){$('#g8play').hidden=true;document.body.style.overflow='';APP.af
 function modeChips(){return APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>${APP.me.streak?`<span class="chip">🔥 連續自學 ${APP.me.streak} 天</span>`:''}`:'<span class="chip trial">試玩中，不會記錄</span>'}
 function intro(){const best=APP.best(LV);
   S.innerHTML=`<div class="intro"><button class="ghost" data-act="quit">← 回到地圖</button><div class="where">${LV.crumb}</div><h2>${LV.title}</h2>
-   <div class="owl">${OWL}</div><div class="say">課後練習：島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。</div>
+   <div class="owl">${OWL}</div><div class="say">${LV.isCore?'💠 島心試煉：這座島各關的重點都在這裡！<br>7 盞燈全部金燈，就能打開寶箱。':'課後練習：島上 7 盞燈籠熄了！<br>答對一題，就點亮一盞。'}</div>
    <div class="chips"><span class="chip">${best?'最高紀錄 '+starStr(best):'第一次挑戰'}</span>${modeChips()}</div>
    <button class="big" data-act="start">${LV.resume?'繼續闖關！':'出發點燈！'}</button></div>`}
 
 /* ---------- 一回合 ---------- */
 /* 開一回合；LV.resume＝換載具接續（resumeOf 還原的題目與燈），等再挑戰的格子直接進再挑戰 */
-function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:planRound(LV.questions,LV.code);
+function start(){const rs=LV.resume;LV.resume=null;PL=rs?rs.plan:LV.coreLv?planCore(LV.questions,{levels:LV.coreLv},LV.slotsOf):planRound(LV.questions,LV.code);
+  if(LV.coreLv)LV.slots=PL.map(it=>it.kind||(LV.slotsOf(it.q.level)||[])[it.q.slot-1]||'基礎'); /* 虛擬島心：燈形照題目原本那一格 */
   st={n:rs?rs.n:0,res:rs?rs.res.slice():Array(7).fill(''),combo:0,max:0,cards:{},it:null,q:null,hint:0,re:false,wrong:[],sel:-1,pairs:{},pl:null,t0:0};nextQ();
   if(rs&&rs.pend.length&&st.it){st.wrongSlots=st.it.slots.map((s,i)=>rs.pend.includes(s)?i:-1).filter(i=>i>=0);retry()}}
 /* 每答完一次就記 mid（pend＝第一次答錯、等再挑戰的格子）；只有登入時才送 */
@@ -1590,7 +1673,7 @@ function result(){const g=st.res.filter(r=>r==='gold').length,sv=st.res.filter(r
   S.innerHTML=`<div class="res"><h2>${sc===3?(g===7?'全對！太厲害了！':'燈籠全亮了！'):sc?'過關！':'再試一次就能過關'}</h2>
    <div class="stars">${[0,1,2].map(i=>`<span class="${i<sc?'on':''}" style="animation-delay:${.2+i*.25}s">★</span>`).join('')}</div>
    <div class="lans" style="flex:none">${st.res.map(x=>`<div class="lan ${x}"></div>`).join('')}</div>
-   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${g===7?`<span class="chip">🎁 這一關全對，寶箱進度 ${r.chest[0]}／${r.chest[1]} 關</span>`:''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
+   <div class="chips">${r.gained?`<span class="chip">🎉 刷新紀錄 +${r.gained} 顆星</span>`:''}<span class="chip">金燈 ${g}・銀燈 ${sv}</span><span class="chip">最高連對 ${st.max}</span>${cs?`<span class="chip">🃏 這一回合拿到秘笈卡 ${cs} 張</span>`:''}${r.chestNew?'<span class="chip">🎁 寶箱打開了！</span>':LV.isCore&&!r.chest?'<span class="chip">💠 島心七盞全金，就能打開寶箱</span>':g===7?'<span class="chip">🌟 這一關七盞全金</span>':''}${APP.rec()?'':'<span class="chip trial">試玩中，不會記錄</span>'}</div>
    ${story?`<div id="myst">${r.storyNew?`<p style="margin:4px 0 8px;font-weight:800">選一張翻開，看看這一關的故事卡</p><div class="myst">${[0,1,2].map(i=>`<button class="mc" data-act="flip" aria-label="第 ${i+1} 張神祕卡">？</button>`).join('')}</div>`:`<div class="story">📖 ${esc(story.title)}<br><small>這張故事卡已經收集過了</small></div>`}</div>`:''}
    <div class="row"><button class="big" data-act="start">${sc===3?'再玩一次':'再挑戰（題目不同）'}</button><button class="ghost" data-act="quit">← 回到地圖</button></div></div>`}
 function flip(){const s=LV.story;$('#myst').innerHTML=`<div class="story">📖 <b>${esc(s.title)}</b><br>${esc(s.body)}<br><small>已收進故事卡圖鑑</small></div>`;sfx('card')}
@@ -1657,14 +1740,14 @@ const APP={me:null,paused:false,save:{},
   card(book,code){const full=code.indexOf(book+'-')===0?code:book+'-'+code,b=(DATA.books[book]||{blindspots:[]}).blindspots.find(x=>x.code===full);
     return b?{name:b.name,...b.card}:{name:'秘笈卡',fix:'',ex:'',chk:''}},
   /* 回合結束 ["e", 關, 任務來源]：最高星等、曾經全金、挑戰次數、故事卡 */
-  endRound(LV,g,sv){const m=this.m(LV.book),before=(m.lv[LV.key]||[0])[0],src=this.rec()?this.taskOf(LV,m,before):'';
+  endRound(LV,g,sv){const m=this.m(LV.book),before=(m.lv[LV.key]||[0])[0],src=this.rec()?this.taskOf(LV,m,before):'',was=chestOpen(LV.isl,m.lv);
     const res=applyRound(m.lv[LV.key]||[0,0,0],g,sv),got=LV.got||0;LV.got=0;
     if(this.rec()){if(m.mid&&m.mid.k===LV.key)m.mid=null;API.setMid(LV.book,null);if(src)this.me.today.done.push(src)}
     m.lv[LV.key]=res.record;let storyNew=false;
     if(passed(g,sv)&&LV.story&&!m.sc.includes(LV.key)){m.sc.push(LV.key);storyNew=true}
     this.log(LV.book,['e',LV.key,src]);this.persist(LV.book);if(this.rec())API.flush();
-    const isl=LV.islandKeys,gold=isl.filter(k=>(m.lv[k]||[])[1]===1).length;
-    return{gained:res.gained,storyNew,cards:got,chest:[gold,isl.length]}},
+    const now=chestOpen(LV.isl,m.lv);
+    return{gained:res.gained,storyNew,cards:got,chest:now,chestNew:now&&!was}},
   /* 卡冊挑戰 ["c", 盲點, 題目ID, 選項, 秒數] */
   cardResult(c,q,opt,sec,ok){const m=this.m(c.book),k=this.short(c.book,c.code),now=cardAfter(m.cd[k],ok,todayStr());
     this.log(c.book,['c',k,q.id,opt,sec]);
@@ -1709,7 +1792,9 @@ const isleShort=(r,u)=>{const h=u.un.split(/[ 、]/)[0];return r.subj==='國語'
 /* 下一步建議：依存檔照固定順序挑前 2 條成立的（句子寫死，P3 §2.1 第 6 項；第②步起加島心、第④步起加百鍊塔） */
 function castleTips(due){const t=[];
   if(due)t.push(`🃏 有 ${due} 張秘笈卡到期了，先複習最划算。`);
-  for(const r of R){const u=r.units.find(u=>u.total&&u.total-u.done>0&&u.total-u.done<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.total-u.done} 關沒亮，過完這座島就全亮了。`);break}}
+  for(const r of R){const u=r.units.find(u=>u.left>0&&u.left<=2);if(u){t.push(`🌙 ${r.name}科「${u.un}」還有 ${u.left} 關沒亮，過完就能挑戰島心試煉。`);break}}
+  for(const r of R){const u=r.units.find(u=>u.open&&!u.chest&&u.core>=0);if(u){const b=u.best[u.core]||0;
+    t.push(b===3?`💠 ${r.name}科「${u.un}」的島心試煉還差 1 盞金燈就開寶箱。`:`💠 ${r.name}科「${u.un}」的島心試煉七盞全金，就能打開寶箱。`);break}}
   outer:for(const r of R)for(const u of r.units)for(let i=0;i<u.best.length;i++)if(u.best[i]===1||u.best[i]===2){t.push(`⭐ ${r.name}科「${u.lv[i]}」再玩一次有機會拿 3 星。`);break outer}
   if(!t.length)t.push('✨ 今天挑一座新的島探險吧！');return t.slice(0,2)}
 /* 本週七格：代理回 days 才畫（第②步部署後才有 weekDays）；沒有就只顯示連續天數，不用本機資料假造 */
@@ -1723,7 +1808,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
    +ringBox(0,'var(--gold)','🔒','百鍊塔','即將開放')
    +ringBox(isl.length?chests/isl.length:0,'#b9a6ff',chests+'／'+isl.length,'島心寶箱',`已開 ${chests}／${isl.length} 個`);
   const cons=R.map(r=>`<div class="crow"><span class="sj" style="color:${r.c.t2}">${r.name}</span><div class="isles">`+r.units.map((u,ui)=>
-    `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map(v=>`<i class="dot${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
+    `<button class="isle" data-isle="${r.id}|${ui}" title="${u.un}" aria-label="${r.name}${u.un}：${u.done}／${u.total} 關${u.chest?'，寶箱已開':''}"><span class="dots">${u.best.map((v,i)=>`<i class="dot${i===u.core?' dia'+(u.open?'':' lk'):''}${v?' s'+v:''}"></i>`).join('')}${u.chest?'🎁':''}</span><small>${isleShort(r,u)}</small></button>`).join('')+'</div></div>').join('');
   const row=(r,k,due)=>{const c=APP.card(r.book,k);return`<li class="dk"><span><b>${esc(c.name)}</b><small>${r.name}・${due?'7 天到了，確認一次':'待複習'}</small></span><button class="btn" data-card="${r.book}|${k}|${due?1:0}">${due?'確認':'再挑戰'}</button></li>`};
   const list=decks.flatMap(({r,d})=>[...d.due.map(k=>row(r,k,1)),...d.todo.map(k=>row(r,k,0))]).join('');
   const stories=R.map(r=>{const m=APP.m(r.book),bk=DATA.books[r.book];if(!bk)return'';const got=bk.stories.filter(s=>m.sc.includes(APP.short(r.book,s.level)));
@@ -1731,7 +1816,7 @@ function pCastleV2(){const t=totalsAll(),today=todayStr(),decks=R.map(r=>({r,d:d
   panel.innerHTML=`<h2>皇城｜我的自學情況</h2>${APP.rec()?'':trialNote}
    <h3>我的三種練習</h3><div class="rings">${rings}</div><p class="mut">累計 ${t.stars} ★・完成 ${t.completed} 關</p>
    <h3>我的星座圖</h3><p class="mut">一點＝一關、一串＝一座島；點一串就飛過去。</p><div class="cons">${cons}</div>
-   <div class="lgd"><span><i class="dot"></i>還沒過</span><span><i class="dot s1"></i>1 星</span><span><i class="dot s2"></i>2 星</span><span><i class="dot s3"></i>3 星</span></div>
+   <div class="lgd"><span><i class="dot"></i>還沒過</span><span><i class="dot s1"></i>1 星</span><span><i class="dot s2"></i>2 星</span><span><i class="dot s3"></i>3 星</span><span><i class="dot dia"></i>島心</span></div>
    ${tasksHTML(true)}${weekHTML(today)}
    <h3>🃏 秘笈卡冊</h3><div class="stacks"><div class="stk"><b>${nT}</b>待複習</div><div class="stk"><b>${nD}</b>7 天後確認${nDue?`<small>今天到期 ${nDue} 張</small>`:''}</div><div class="stk"><b>${nO}</b>已克服</div></div>
    ${list?`<details class="deckbox"><summary class="btn">🃏 去複習（${nT+nDue} 張）</summary><ul class="deck">${list}</ul></details>`:'<p class="mut">目前沒有要複習的卡。答錯拿到的秘笈卡會收在這裡。</p>'}
@@ -1749,24 +1834,33 @@ function pRegion(r){const bs=DATA.index.books.filter(b=>b.subject===r.subj);
   panel.querySelectorAll('[data-bk]').forEach(b=>b.onclick=()=>{setBookOf(r.subj,b.dataset.bk);boot(true)})}
 function pIsland(r,ui){const u=r.units[ui];
   panel.innerHTML=`<h2>${u.un}</h2><p class="mut">${r.name}・${u.u}｜${u.total} 關${u.ex?'・期中評量考過（複習用）':''}</p>${bar(u.total?u.done/u.total*100:0,r.c.t1)}
-   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
-   <p class="mut">${u.chest?'🎁 寶箱打開了！':'🔒 每一關都「七盞全金」，寶箱就會打開。'}</p>`;
+   <h3>課後練習</h3><ol class="lvs">${u.lv.map((t,i)=>i===u.core?'':`<li><button class="lnk" data-l="${i}">${u.keys[i]} ${t}</button> <span class="st">${u.best[i]?'★'.repeat(u.best[i])+'☆'.repeat(3-u.best[i]):'未挑戰'}</span></li>`).join('')}</ol>
+   ${u.core>=0?`<h3>島心與寶箱</h3><p><button class="lnk" data-l="${u.core}">${coreTitle(u)}</button> <span class="st">${u.open?(u.best[u.core]?'★'.repeat(u.best[u.core])+'☆'.repeat(3-u.best[u.core]):'未挑戰'):'🔒 還差 '+u.left+' 關'}</span></p>`:''}
+   <p class="mut">${u.chest?'🎁 寶箱打開了！':'🎁 島心試煉七盞全金，寶箱就會打開。'}</p>`;
   panel.querySelectorAll('[data-l]').forEach(b=>b.onclick=()=>go({k:'level',r:r.id,u:ui,l:+b.dataset.l}))}
-function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[li];
-  return{book:r.book,key:u.keys[li],code,subj:r.id,crumb:`${r.name}區・${u.un}`,title:u.keys[li]+' '+u.lv[li],slots:u.slots[li],
-    questions:bk.questions,story:bk.stories.find(s=>s.level===code)||null,islandKeys:u.keys,src:''}}
-function pLevel(r,ui,li){const u=r.units[ui],m=APP.m(r.book),rec=m.lv[u.keys[li]]||[0,0,0],bk=DATA.books[r.book];
-  const kps=bk?bk.kps.filter(k=>k.level===u.codes[li]):[];
+/* 島心的標題：國語「💠 島心・1-5 美麗島・評量複習」；虛擬島心「💠 島心試煉」 */
+const coreTitle=u=>u.virt?'💠 島心試煉':'💠 島心・'+u.keys[u.core]+' '+u.lv[u.core];
+function lvCtx(r,ui,li){const u=r.units[ui],bk=DATA.books[r.book],code=u.codes[li],isCore=li===u.core,virt=isCore&&u.virt;
+  const slotsOf=c=>{const k=u.codes.indexOf(c);return k>=0?u.slots[k]:[]};
+  return{book:r.book,key:u.keys[li],code,subj:r.id,crumb:`${r.name}區・${u.un}`,title:isCore?coreTitle(u):u.keys[li]+' '+u.lv[li],slots:u.slots[li],
+    questions:bk.questions,story:bk.stories.find(s=>s.level===code)||null,islandKeys:u.keys,isl:u.isl,isCore,
+    coreLv:virt?u.coreLv:null,slotsOf,src:''}}
+function pLevel(r,ui,li){const u=r.units[ui],m=APP.m(r.book),rec=m.lv[u.keys[li]]||[0,0,0],bk=DATA.books[r.book],isCore=li===u.core;
+  if(isCore&&!u.open){panel.innerHTML=`<h2>${coreTitle(u)}</h2><p class="mut">${r.name}・${u.un}</p><p>🔒 這座島其他的關都過關（至少 1 星），島心試煉就會開放。</p><p><b>還差 ${u.left} 關</b></p>
+     <p class="mut">島心試煉七盞全金，就能打開這座島的寶箱。</p>`;return}
+  const kps=bk?bk.kps.filter(k=>isCore&&u.virt?u.coreLv.includes(k.level):k.level===u.codes[li]):[];
   /* 換載具接續：存檔裡有這一關答到一半的 mid → 「繼續上次（第 N 題）」 */
-  const rs=APP.rec()&&bk&&m.mid&&m.mid.k===u.keys[li]?resumeOf(m.mid,bk.questions,u.codes[li]):null;
-  panel.innerHTML=`<h2>${u.keys[li]} ${u.lv[li]}</h2><p class="mut">${r.name}・${u.un}${u.exam[li]?'・'+esc(u.exam[li])+'評量範圍':''}</p>
+  const rs=APP.rec()&&bk&&m.mid&&m.mid.k===u.keys[li]?resumeOf(m.mid,bk.questions,u.codes[li],isCore&&u.virt?u.coreLv:null):null;
+  panel.innerHTML=`<h2>${isCore?coreTitle(u):u.keys[li]+' '+u.lv[li]}</h2><p class="mut">${r.name}・${u.un}${u.exam[li]?'・'+esc(u.exam[li])+'評量範圍':''}</p>
    ${rs?`<button class="btn go" id="resume">⏯ 繼續上次（${rs.n>=rs.plan.length?'看結果':'第 '+midSlot(m.mid)+' 題'}）</button> `:''}<button class="btn go${rs?' ghost':''}" id="enter">▶ ${rs?'重新開始':'進入這一關'}</button>
    <p>${rec[0]?`最高紀錄 ${'★'.repeat(rec[0])+'☆'.repeat(3-rec[0])}・挑戰 ${rec[2]} 次${rec[1]?'・曾經七盞全金':''}`:'還沒挑戰過'}</p>
-   ${kps.length?`<h3>這一關的學習重點</h3><ul>${kps.map(k=>`<li>${esc(k.name)}</li>`).join('')}</ul>`:''}
-   <p class="mut">一關 7 題，答對一題點亮一盞燈；3 盞以上就過關，可以翻一張故事卡。</p>`;
+   ${kps.length?`<h3>${isCore?'這座島':'這一關'}的學習重點</h3><ul>${kps.map(k=>`<li>${esc(k.name)}</li>`).join('')}</ul>`:''}
+   <p class="mut">${isCore?(u.virt?'島心試煉從這座島各關抽 7 題；':'')+'7 盞燈全部金燈，就能打開這座島的寶箱'+(u.chest?'（🎁 已打開）':'')+'。':'一關 7 題，答對一題點亮一盞燈；3 盞以上就過關，可以翻一張故事卡。'}</p>`;
   $('#enter').onclick=()=>G8.open(lvCtx(r,ui,li));if(rs)$('#resume').onclick=()=>G8.open({...lvCtx(r,ui,li),resume:rs})}
-function pChest(r,ui){const u=r.units[ui],m=APP.m(r.book),gold=u.keys.filter(k=>(m.lv[k]||[])[1]===1).length;
-  panel.innerHTML=`<h2>${u.un}的寶箱</h2><p>這座島的每一關都<b>七盞全金</b>（不必同一天），寶箱就會打開。</p><p class="mut">${u.chest?'🎁 寶箱打開了！':'目前七盞全金的關：'+gold+'／'+u.total+' 關'}</p>`}
+function pChest(r,ui){const u=r.units[ui];
+  panel.innerHTML=`<h2>${u.un}的寶箱</h2><p><b>島心試煉七盞全金</b>，寶箱就會打開。</p><p class="mut">${u.chest?'🎁 寶箱打開了！':u.open?'💠 島心試煉已經開放，去挑戰吧！':'🔒 島心試煉還沒開放：其他的關還差 '+u.left+' 關過關。'}</p>
+   ${u.core>=0&&!u.chest?`<button class="btn go" id="toCore">💠 去島心試煉</button>`:''}`;
+  const b=$('#toCore');if(b)b.onclick=()=>go({k:'level',r:r.id,u:ui,l:u.core})}
 
 /* ---------- 分頁 ---------- */
 function tab(id){document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('on',s.id===id));document.querySelectorAll('nav button').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===id));
@@ -1817,7 +1911,7 @@ const API={url:'',dev:'',q:[],mid:{},busy:false,timer:null,fails:0,err:'',online
     if(r.relogin){this.err='登入過期了，請重新登入（還沒上傳的會留著）';LS.del('so-auth');APP.me.token='';APP.relogin=true;acctUI();return'stop'}
     if(r.paused){APP.paused=true;this.err=r.error||'自學星圖暫停中';acctUI();return'stop'}
     if(r.retry)return'retry';this.err=r.error||'上傳失敗';return'retry'},
-  setMe(r){if(!APP.me)return;if(r.today&&Array.isArray(r.today.src))APP.me.today={done:r.today.src.slice()};if(typeof r.streak==='number')APP.me.streak=r.streak},
+  setMe(r){if(!APP.me)return;if(r.today&&Array.isArray(r.today.src))APP.me.today={done:r.today.src.slice()};if(typeof r.streak==='number')APP.me.streak=r.streak;if(Array.isArray(r.days))APP.me.days=r.days.slice()}, /* v2.26 起代理回 days（本週七格） */
 
   /* ---- 登入／登出 ---- */
   async login(seat,code){if(!this.url)return'現在連不到自學星圖的伺服器，只能試玩。';
