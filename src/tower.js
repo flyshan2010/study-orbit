@@ -36,7 +36,7 @@ function open(f){F=f;$('#g8play').hidden=false;document.body.style.overflow='hid
 function close(){stop();$('#g8play').hidden=true;document.body.style.overflow='';APP.afterPlay();if(APP.rec())API.flush()}
 function stop(){if(tick){clearInterval(tick);tick=null}}
 function chips(){const b=TWR.rec()[F]||0;return`<div class="chips"><span class="chip">${b?'最佳紀錄 '+fmtSec(b):'第一次挑戰這一層'}</span>${APP.rec()?`<span class="chip">今日任務 ${APP.me.today.done.length}／3</span>`:'<span class="chip trial">試玩中，不會記錄</span>'}</div>`}
-function intro(){stop();
+function intro(){stop();MUS.lift(F);MUS.zone('tw');
   S.innerHTML=`<div class="intro"><button class="ghost" data-tw="quit">← 回到塔</button><div class="where">皇城・百鍊之塔・數學算力階</div><h2>第 ${F} 層・${name()}</h2>
    <div class="say">10 題快答，<b>答對 9 題</b>就過層！<br>不倒數，看清楚再按；${TWR.rec()[F]?'比最佳紀錄快就是金階。':'第一次過層會記成你的最佳紀錄。'}</div>
    ${chips()}<button class="big" data-tw="go">出發！</button></div>`}
@@ -47,7 +47,7 @@ function clock(){const c=$('#twclock');if(c&&st)c.textContent='⏱ '+fmtSec(used
 function draw(){const q=QS[st.n];lock=false;st.t0=Date.now();
   S.innerHTML=`<div class="quiz tw"><div class="qh"><button class="back" data-tw="quit">← 回到塔</button>
      <div class="ttl"><span class="gcrumb">百鍊之塔・數學算力階</span><h2>第 ${F} 層・${name()}</h2></div>
-     <span class="twclock" id="twclock" aria-label="用時（不倒數）">⏱ ${fmtSec(used()/1000)}</span></div>
+     <span class="twclock" id="twclock" aria-label="用時（不倒數）">⏱ ${fmtSec(used()/1000)}</span><button class="snd" data-tw="snd" aria-label="音效開關">${G8.snd?'🔊':'🔇'}</button></div>
    <div class="prog" aria-label="第 ${st.n+1} 題，共 10 題">${QS.map((_,i)=>`<i class="mk ${i<st.n?(st.ok[i]?'gold':'dark'):''}${i===st.n?' cur':''}"></i>`).join('')}<span class="task">第 ${st.n+1}／10 題・答對 ${st.ok.filter(Boolean).length}</span></div>
    <p class="q twq">${esc(q.text)}</p>
    <div class="opts">${q.opts.map((o,i)=>`<button class="gopt" data-o="${i}"><span class="k">${'ABCD'[i]}</span><span>${esc(o)}</span></button>`).join('')}</div>
@@ -75,6 +75,6 @@ function result(){stop();const correct=st.ok.filter(Boolean).length,sec=Math.max
    <div class="row">${more?`<button class="big" data-tw="up">往上一層 ▶</button>`:''}<button class="${more?'ghost':'big'}" data-tw="go">${r.pass?'再挑戰這一層':'再挑戰（題目不同）'}</button><button class="ghost" data-tw="quit">← 回到塔</button></div></div>`}
 S.addEventListener('click',e=>{if($('#g8play').hidden||!S.querySelector('[data-tw]'))return;const b=e.target.closest('[data-tw],[data-o]');if(!b)return;
   if(b.dataset.o!=null)return pick(+b.dataset.o);
-  const a=b.dataset.tw;if(a==='quit')close();else if(a==='go')start();else if(a==='up'){F++;intro()}});
+  const a=b.dataset.tw;if(a==='snd'){e.stopPropagation();G8.setSnd(!G8.snd);return}if(a==='quit')close();else if(a==='go')start();else if(a==='up'){F++;intro()}});
 document.addEventListener('keydown',e=>{if($('#g8play').hidden||!S.querySelector('[data-o]'))return;if(/^[1-4]$/.test(e.key))pick(+e.key-1)});
 return{open,close}})();

@@ -31,6 +31,10 @@ const I={
  pad:(A,o,t,m,v=1,d=2)=>tone(A,o,t,hz(m),d,.02*v,'triangle',{sus:1,a:.5}),
  tick:(A,o,t,f,v=1)=>tone(A,o,t,f,.03,.018*v,'square'),
  shake:(A,o,t,v=1)=>{const s=A.createBufferSource(),g=A.createGain(),h=A.createBiquadFilter();h.type='highpass';h.frequency.value=2600;s.buffer=noiseBuf;g.gain.setValueAtTime(.035*v,t);g.gain.exponentialRampToValueAtTime(.0001,t+.07);s.connect(h);h.connect(g);g.connect(o);s.start(t);s.stop(t+.1)},
+ /* 百鍊之塔：太鼓（音高往下掉的低鼓）、鐵砧（不和諧泛音的金屬清響）、銅管（兩支微走音鋸齒波長音） */
+ taiko:(A,o,t,v=1)=>{tone(A,o,t,120,.38,.16*v,'sine',{to:48,glide:.3});const s=A.createBufferSource(),g=A.createGain(),h=A.createBiquadFilter();h.type='lowpass';h.frequency.value=900;s.buffer=noiseBuf;g.gain.setValueAtTime(.05*v,t);g.gain.exponentialRampToValueAtTime(.0001,t+.06);s.connect(h);h.connect(g);g.connect(o);s.start(t);s.stop(t+.1)},
+ anvil:(A,o,t,m,v=1)=>{tone(A,o,t,hz(m),.9,.05*v,'sine');tone(A,o,t,hz(m)*2.76,.35,.022*v,'sine');tone(A,o,t,hz(m)*5.4,.12,.012*v,'sine')},
+ brass:(A,o,t,m,v=1,d=.6)=>{tone(A,o,t,hz(m),d,.022*v,'sawtooth',{sus:1,a:.06,det:5});tone(A,o,t,hz(m),d,.022*v,'sawtooth',{sus:1,a:.06,det:-5});tone(A,o,t,hz(m),d,.03*v,'triangle',{sus:1,a:.05,vib:1})},
  chirp:(A,o,t,v=1)=>{tone(A,o,t,2300,.09,.02*v,'sine',{to:3300});tone(A,o,t+.13,2500,.09,.02*v,'sine',{to:3500})}
 };
 const M=(...b)=>b.flat();
@@ -60,6 +64,13 @@ const TH={
   ch:[[41,45,48],[50,53,57],[46,50,53],[48,52,55],[41,45,48],[50,53,57],[46,50,53],[48,52,55]],
   acc(A,o,t,i,ch,sd,bar){arp('marimba',[0,null,2,1,null,2,3,null],12,1)(A,o,t,i,ch);if(i%2)I.shake(A,o,t,i===3||i===7?1:.6);if(i===0||i===5)I.bass(A,o,t,ch[0]+(ch[0]<44?12:0),.9,sd*2);if((bar===3||bar===7)&&i===6)I.chirp(A,o,t)},
   mel:M([77,0,0,81,0,84,0,0],[0,81,0,77,0,0,74,0],[77,0,0,82,0,86,0,0],[0,84,0,79,0,0,76,0],[77,0,81,0,84,0,89,0],[86,0,0,81,0,0,77,0],[82,0,0,86,0,82,0,0],[84,0,79,0,76,0,0,0])},
+ /* 百鍊之塔（P3 §5）：太鼓穩定的心跳給專注節奏，鐵砧清響＝「百鍊成鋼」，上行撥弦＝一層一層往上爬；
+    D 小調、有決心但不緊張（不倒數，不用急促的音樂催孩子）。off＝依層數升調（每 2 層升半音，最多 +5），越往上越亮 */
+ tw:{name:'百鍊之塔',look:'層層疊起的試煉塔',music:'太鼓心跳＋鐵砧清響＋上行撥弦，銅管旋律，D 小調；越往上層音樂越高',tempo:112,sfx:'鐵砧',bpm:112,spb:8,melI:'brass',melOct:-12,off:0,
+  ch:[[50,53,57],[46,50,53],[48,52,55],[45,48,52],[50,53,57],[53,57,60],[43,46,50],[45,49,52]],
+  acc(A,o,t,i,ch,sd){arp('guitar',[0,1,2,3,0,1,2,3],12,.6)(A,o,t,i,ch);if(i===0||i===3||i===6)I.taiko(A,o,t,i?.7:1);if(i===4)I.anvil(A,o,t,ch[0]+36,.5);if(i===0){I.bass(A,o,t,ch[0]-12,1.1,sd*3);I.pad(A,o,t,ch[1]+12,.9,sd*8)}},
+  mel:M([[74,3],0,0,[77,1],[81,4],0,0,0],[[82,2],0,[81,2],0,[77,4],0,0,0],[[79,3],0,0,[81,1],[84,4],0,0,0],[[81,6],0,0,0,0,0,0,0],
+        [[74,2],0,[77,2],0,[81,2],0,[86,2],0],[[84,4],0,0,0,[81,2],0,[77,2],0],[[79,2],0,[82,2],0,[86,3],0,0,[84,1]],[[81,6],0,0,0,0,0,0,0])},
  en:{name:'英語・熱氣球海港',look:'棕櫚、帆船、旗幟、熱氣球——環遊世界',music:'三拍子圓舞曲，手風琴旋律＋嘭恰恰伴奏，悠閒搖擺',tempo:108,sfx:'手風琴',bpm:108,spb:6,melI:'accordion',melOct:-12,
   ch:[[53,57,60,65],[50,57,62,65],[55,58,62,67],[48,58,60,64],[53,57,60,65],[46,58,62,65],[48,55,60,64],[53,57,60,65]],
   acc(A,o,t,i,ch,sd){if(i===0)I.bass(A,o,t,ch[0],1,sd*2.5);if(i===2||i===4)ch.slice(1).forEach(m=>I.guitar(A,o,t,m,.55))},
@@ -72,7 +83,8 @@ const SF={
  ma:{i:'box',tap:79,ok:[79,86],no:[66,62],win:[67,71,74,79,83]},
  so:{i:'guitar',tap:67,ok:[67,74],no:[62,59],win:[62,67,71,74,79]},
  sc:{i:'marimba',tap:77,ok:[77,84],no:[60,57],win:[65,69,72,77,81]},
- en:{i:'accordion',tap:72,ok:[72,77],no:[60,57],win:[60,65,69,72,77]}
+ en:{i:'accordion',tap:72,ok:[72,77],no:[60,57],win:[60,65,69,72,77]},
+ tw:{i:'anvil',tap:86,ok:[86,93],no:[62,57],win:[74,77,81,86,89]}
 };
 function sfx(k){if(!G8.snd)return;const A=ctx();if(!A)return;const z=SF[cur],f=I[z.i],o=sfxOut,t=A.currentTime+.01;
   if(k==='tap')f(A,o,t,z.tap,1.2,.12);
@@ -81,8 +93,8 @@ function sfx(k){if(!G8.snd)return;const A=ctx();if(!A)return;const z=SF[cur],f=I
   else if(k==='win')z.win.forEach((m,n)=>f(A,o,t+n*.13,m,1.8,n===4?.6:.16));
   else if(k==='card')[0,4,7,12,16].forEach((d,n)=>f(A,o,t+n*.06,z.tap+d,1.2,.12));
   else if(k==='enter'){f(A,o,t,z.win[0]+12,1.3,.14);f(A,o,t+.1,z.win[2]+12,1.3,.14);f(A,o,t+.2,z.win[3]+12,1.3,.3)}}
-function playStep(A,T,s,t){const sd=30/T.bpm,bar=(s/T.spb|0)%T.ch.length,i=s%T.spb;T.acc(A,bus,t,i,T.ch[bar],sd,bar);
-  if(duck)return;const n=T.mel[s];if(n){const a=Array.isArray(n);I[T.melI](A,bus,t,(a?n[0]:n)+(T.melOct||0),1,(a?n[1]:1)*sd*.95)}}
+function playStep(A,T,s,t){const sd=30/T.bpm,bar=(s/T.spb|0)%T.ch.length,i=s%T.spb,off=T.off||0;T.acc(A,bus,t,i,off?T.ch[bar].map(m=>m+off):T.ch[bar],sd,bar);
+  if(duck)return;const n=T.mel[s];if(n){const a=Array.isArray(n);I[T.melI](A,bus,t,(a?n[0]:n)+(T.melOct||0)+off,1,(a?n[1]:1)*sd*.95)}}
 function tick(){const A=ctx();if(!A||!playing)return;const T=TH[playing],sd=30/T.bpm;if(nextT<A.currentTime)nextT=A.currentTime+.06;
   while(nextT<A.currentTime+.3){playStep(A,T,step,nextT);nextT+=sd;step=(step+1)%T.mel.length}}
 function fade(v,d){const A=ctx();if(!A)return;const g=bus.gain,t=A.currentTime;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+d)}
@@ -99,13 +111,16 @@ function set(v){on=v;try{localStorage.setItem('so-music',v?'1':'0')}catch(e){}ap
 function zone(id,ring){if(!TH[id])id='home';if(cur===id)return;cur=id;apply();if(ring&&armed)sfx('enter')}
 ['pointerdown','keydown'].forEach(ev=>addEventListener(ev,()=>{if(!armed){armed=true;apply()}},true));
 document.addEventListener('visibilitychange',apply);
-return{TH,sfx,zone,set,toggle:()=>set(!on),duck:v=>{if(duck!==v){duck=v;apply()}},sync,
+/* 百鍊之塔：第 f 層 → 升幾個半音（1–2 層 0、3–4 層 +1 … 11–12 層 +5） */
+function lift(f){TH.tw.off=Math.max(0,Math.min(5,Math.floor((Number(f)||1)-1)/2|0))}
+return{TH,sfx,zone,set,lift,toggle:()=>set(!on),duck:v=>{if(duck!==v){duck=v;apply()}},sync,
   state:()=>{let rms=0;if(ana){const d=new Float32Array(ana.fftSize);ana.getFloatTimeDomainData(d);rms=Math.sqrt(d.reduce((a,x)=>a+x*x,0)/d.length)}return{on,armed,cur,playing,duck,step,rms:+rms.toFixed(4)}}}})();
 
 /* 接到畫面：地圖走到哪一區就換哪一套；進答題畫面只留伴奏、音量減半 */
 (()=>{
  const hook=(n,id)=>{const f=window[n];window[n]=function(r){f.apply(this,arguments);MUS.zone(id||r.id,true)}};
  hook('pWorld','home');hook('pCastle','home');hook('pRegion');hook('pIsland');hook('pLevel');
+ if(typeof pTower==='function'){const f=pTower;window.pTower=function(){f.apply(this,arguments);if(TWR.on())MUS.lift(TWR.next().f);MUS.zone('tw',true)}}
  const o0=G8.open,c0=G8.close;G8.open=lv=>{MUS.zone(lv.subj);o0(lv)};
  const sc=document.querySelector('#scene'),play=document.querySelector('#g8play');
  const watch=()=>{MUS.duck(!play.hidden&&!!sc.querySelector('.gopt,.ml'));
