@@ -418,4 +418,4 @@ header .acct{margin-top:0;min-height:44px;padding:6px 16px}
 .g8 .quiz.tw.word .twsub{font-size:clamp(15px,2vw,18px);color:var(--mut);max-width:820px;width:100%;margin:clamp(4px,2vh,16px) auto 0}
 .g8 .quiz.tw.word .twbig{font-size:clamp(26px,5vw,44px);text-align:center;font-weight:900;margin-top:4px}
 .g8 .quiz.tw.word .opts{grid-template-columns:1fr;max-width:820px}
-.g8 .quiz.tw.word .gopt{justify-content:flex-start;text-align:left;font-size:clamp(18px,2.6vw,24px);min-height:56px;padding:10px 14px 10px 44px;font-variant-numeric:normal}
+.g8 .quiz.tw.word .gopt{justify-content:flex-start;text-align:left;font-size:clamp(18px,2.6vw,24px);min-height:56px;padding:10px 14px 10px 60px;font-variant-numeric:normal}
